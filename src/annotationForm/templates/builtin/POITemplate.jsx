@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from "react";
 import {
   Button,
   FormControl,
@@ -191,6 +191,19 @@ export default function POITemplate(
     Object.keys(annotationState.maeData.contentByLocale)[0] ?? contentLocales[0]?.code
   );
 
+  const rootRef = useRef(null);
+  // strapi-plugins' MiradorMaeViewer already reparents MuiPopover/MuiPopper's mount node into
+  // the Radix dialog via a theme default (so Radix's outside-pointer-events lock, a plain
+  // Node.contains() check with no opt-out, sees them as "inside" the dialog) - but MUI's Select
+  // resolves its dropdown's container through the `MuiMenu` theme slot, not `MuiPopover`
+  // (Menu.js calls its own useDefaultProps({ name: 'MuiMenu' }) before ever rendering
+  // Popover), so that theme default never reaches it: the dropdown kept mounting on
+  // document.body, outside the dialog, silently eating hover/click on its options (and, per
+  // root_repo#34's original fix, native focus/focusout recursion between MUI's and Radix's
+  // focus traps). Setting `container` explicitly here reaches Popover directly regardless of
+  // which theme slot resolves it.
+  const dialogContainer = () => rootRef.current?.closest("[role=\"dialog\"]") ?? document.body;
+
   const activeLocaleContent = getLocaleContent(annotationState.maeData.contentByLocale, activeLocale);
 
   /** Update a top-level maeData field * */
@@ -269,7 +282,7 @@ export default function POITemplate(
   };
 
   return (
-    <Grid container direction="column" spacing={2}>
+    <Grid container direction="column" spacing={2} ref={rootRef}>
       <Grid>
         <Typography variant="formSectionTitle">{t('poi')}</Typography>
       </Grid>
@@ -282,6 +295,7 @@ export default function POITemplate(
               label={t("poi_language")}
               value={activeLocale ?? ""}
               onChange={(event) => setActiveLocale(event.target.value)}
+              MenuProps={{ container: dialogContainer }}
             >
               {contentLocales.map(({ code, name }) => (
                 <MenuItem key={code} value={code}>{name ?? code}</MenuItem>
@@ -317,6 +331,7 @@ export default function POITemplate(
                   index,
                   { ...item, type: event.target.value, value: '' },
                 )}
+                MenuProps={{ container: dialogContainer }}
               >
                 <MenuItem value={DESCRIPTION_ITEM_TYPES.TEXT}>
                   {t('poi_description_item_type_text')}
