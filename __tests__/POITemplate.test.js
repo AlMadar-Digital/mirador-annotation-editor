@@ -1,7 +1,8 @@
 import React from 'react';
 import { I18nextProvider } from 'react-i18next';
+import userEvent from '@testing-library/user-event';
 import { i18n } from '../setupTest';
-import { fireEvent, render, screen } from './test-utils';
+import { fireEvent, render, screen, waitFor } from './test-utils';
 import POITemplate, {
   applyPoiBodyConversion,
   convertPoiAnnotationToBeSaved,
@@ -158,6 +159,25 @@ describe('applyPoiBodyConversion', () => {
     ]);
   });
 
+  it("appends a MediaItem describing body when a media item is attached, carrying its title", () => {
+    const state = basePoiState();
+    state.maeData.contentByLocale.en.mediaItem = { documentId: 'media-1', titleEn: 'Dome of the Rock tour' };
+
+    const result = applyPoiBodyConversion(state);
+
+    expect(result.body.slice(1)).toEqual([
+      {
+        id: 'media-1', language: 'en', purpose: 'describing', title: 'Dome of the Rock tour', type: 'MediaItem'
+      },
+    ]);
+  });
+
+  it("omits the MediaItem body when no media item is attached", () => {
+    const result = applyPoiBodyConversion(basePoiState());
+
+    expect(result.body.some((item) => item.type === 'MediaItem')).toBe(false);
+  });
+
   it("builds one identifying + describing group per locale actually present", () => {
     const state = basePoiState();
     state.maeData.contentByLocale.ar = {
@@ -220,8 +240,13 @@ describe('POITemplate (render)', () => {
 
   const CONTENT_LOCALES = [{ code: "en", name: "English" }, { code: "ar", name: "Arabic" }];
 
-  /** Render POITemplate wrapped the same way exampleExternalTemplate.test.js does */
-  const renderPoiTemplate = (annotation = {}, saveAnnotation = vi.fn(), contentLocales = []) => render(
+/** Render POITemplate wrapped the same way exampleExternalTemplate.test.js does */
+  const renderPoiTemplate = (
+    annotation = {},
+    saveAnnotation = vi.fn(),
+    contentLocales = [],
+    searchMediaItems = undefined,
+  ) => render(
     <I18nextProvider i18n={i18n}>
       <POITemplate
         annotation={annotation}
@@ -232,7 +257,7 @@ describe('POITemplate (render)', () => {
         windowId="window1"
       />
     </I18nextProvider>,
-    { preloadedState: { config: { annotation: { contentLocales } } } }
+    { preloadedState: { config: { annotation: { contentLocales, searchMediaItems } } } }
   );
 
   it('does not save and shows an error when the target is not a single point', () => {
@@ -312,5 +337,50 @@ describe('POITemplate (render)', () => {
 
     expect(screen.getByDisplayValue("قبة الصخرة")).toBeInTheDocument();
     expect(screen.queryByDisplayValue("Dome of the Rock")).not.toBeInTheDocument();
+  });
+
+  it("does not render a media item field when no searchMediaItems capability is configured", () => {
+    renderPoiTemplate();
+
+    expect(screen.queryByText("poi_media_item")).not.toBeInTheDocument();
+  });
+
+  it("lets the editor search and attach a media item, then reflects the pick", async () => {
+    const searchMediaItems = vi.fn().mockResolvedValue([
+      { documentId: "media-1", mediaType: "audio", purpose: "audio-tour", titleEn: "Dome of the Rock tour" },
+    ]);
+    renderPoiTemplate({}, vi.fn(), [], searchMediaItems);
+
+    const mediaField = screen.getByLabelText("poi_media_item");
+    await userEvent.type(mediaField, "Dome");
+
+    await waitFor(() => expect(searchMediaItems).toHaveBeenCalledWith("Dome"));
+    fireEvent.click(await screen.findByRole("option", { name: "Dome of the Rock tour" }));
+
+    expect(screen.getByLabelText("poi_media_item")).toHaveValue("Dome of the Rock tour");
+  });
+
+  it("rehydrates an already-attached media item from the saved annotation body", () => {
+    renderPoiTemplate({
+      body: [
+        { language: "en", purpose: "identifying", type: "TextualBody", value: "Dome of the Rock" },
+        {
+          id: "media-1", language: "en", purpose: "describing", title: "Dome of the Rock tour", type: "MediaItem"
+        },
+      ],
+      "dbf:kind": "POI",
+      id: "canvas1/annotation/1",
+      maeData: {
+        target: { drawingState: JSON.stringify({ shapes: [poiShape()] }) },
+        templateType: "poi"
+      },
+      motivation: "identifying",
+      target: {
+        selector: [{ type: "SvgSelector", value: "<svg><circle cx=\"10\" cy=\"20\" r=\"5\"/></svg>" }],
+        source: "canvas1"
+      }
+    }, vi.fn(), [], vi.fn().mockResolvedValue([]));
+
+    expect(screen.getByLabelText("poi_media_item")).toHaveValue("Dome of the Rock tour");
   });
 });

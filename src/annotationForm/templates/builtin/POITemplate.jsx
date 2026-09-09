@@ -22,6 +22,7 @@ import { isValidUrl, TEMPLATE } from '../../AnnotationFormUtils';
 import { resizeKonvaStage, SHAPES_TOOL } from '../../AnnotationFormOverlay/KonvaDrawing/KonvaUtils';
 import { finalizeSpatialTarget, getDefaultValue, isEmptyValue } from '../../../IIIFUtils';
 import { templateKit } from '../kit';
+import { MediaItemRelationField } from '../templateComponents/MediaItemRelationField';
 
 const { AnnotationFormFooter, TargetFormSection } = templateKit;
 
@@ -33,15 +34,20 @@ export const DESCRIPTION_ITEM_TYPES = {
   TEXT: 'TextualBody',
 };
 
-const EMPTY_LOCALE_CONTENT = { descriptionItems: [], title: "" };
+/** The body-item type of a POI's per-language Media Item relation (mediaEn/mediaAr) - kept
+ * distinct from DESCRIPTION_ITEM_TYPES since it's a single field per language, not an entry
+ * in the repeatable descriptionItems list. */
+export const MEDIA_ITEM_BODY_TYPE = 'MediaItem';
 
-/** Read one locale's title/descriptionItems out of maeData.contentByLocale, defaulting to
- * empty content for a locale the editor hasn't touched yet (never written into state - see
- * applyPoiBodyConversion, which is what keeps an untouched locale from being saved as an
- * empty Strapi row).
+const EMPTY_LOCALE_CONTENT = { descriptionItems: [], mediaItem: null, title: "" };
+
+/** Read one locale's title/descriptionItems/mediaItem out of maeData.contentByLocale,
+ * defaulting to empty content for a locale the editor hasn't touched yet (never written into
+ * state - see applyPoiBodyConversion, which is what keeps an untouched locale from being saved
+ * as an empty Strapi row).
  * @param {object} contentByLocale
  * @param {string} locale
- * @returns {{ title: string, descriptionItems: Array }}
+ * @returns {{ title: string, descriptionItems: Array, mediaItem: (object|null) }}
  */
 const getLocaleContent = (contentByLocale, locale) => contentByLocale[locale] ?? EMPTY_LOCALE_CONTENT;
 
@@ -88,23 +94,33 @@ export const applyPoiBodyConversion = (state) => {
   const stateToSave = state;
   const { contentByLocale } = stateToSave.maeData;
 
-  stateToSave.body = Object.entries(contentByLocale).flatMap(([language, { title, descriptionItems }]) => [
-    {
-      language,
-      purpose: 'identifying',
-      type: DESCRIPTION_ITEM_TYPES.TEXT,
-      value: isEmptyValue(title) ? getDefaultValue() : title,
-    },
-    ...descriptionItems
-      .filter((item) => !isEmptyValue(item.value))
-      .map((item) => (item.type === DESCRIPTION_ITEM_TYPES.TEXT
-        ? {
-          language, purpose: "describing", type: DESCRIPTION_ITEM_TYPES.TEXT, value: item.value
-        }
-        : {
-          id: item.value, language, purpose: "describing", type: item.type
-        })),
-  ]);
+  stateToSave.body = Object.entries(contentByLocale)
+    .flatMap(([language, { title, descriptionItems, mediaItem }]) => [
+      {
+        language,
+        purpose: 'identifying',
+        type: DESCRIPTION_ITEM_TYPES.TEXT,
+        value: isEmptyValue(title) ? getDefaultValue() : title,
+      },
+      ...descriptionItems
+        .filter((item) => !isEmptyValue(item.value))
+        .map((item) => (item.type === DESCRIPTION_ITEM_TYPES.TEXT
+          ? {
+            language, purpose: "describing", type: DESCRIPTION_ITEM_TYPES.TEXT, value: item.value
+          }
+          : {
+            id: item.value, language, purpose: "describing", type: item.type
+          })),
+      ...(mediaItem
+        ? [{
+          id: mediaItem.documentId,
+          language,
+          purpose: 'describing',
+          title: mediaItem.titleEn,
+          type: MEDIA_ITEM_BODY_TYPE,
+        }]
+        : []),
+    ]);
 
   return stateToSave;
 };
@@ -136,7 +152,7 @@ export default function POITemplate(
     windowId,
   },
 ) {
-  const { contentLocales = [] } = useSelector((state) => getConfig(state)).annotation ?? {};
+  const { contentLocales = [], searchMediaItems } = useSelector((state) => getConfig(state)).annotation ?? {};
 
   let maeAnnotation = annotation;
 
@@ -168,9 +184,11 @@ export default function POITemplate(
     maeAnnotation.body.forEach((body) => {
       const locale = body.language;
       if (!locale) return;
-      const content = contentByLocale[locale] ?? { descriptionItems: [], title: "" };
+      const content = contentByLocale[locale] ?? { descriptionItems: [], mediaItem: null, title: "" };
       if (body.purpose === "identifying") {
         content.title = body.value ?? "";
+      } else if (body.type === MEDIA_ITEM_BODY_TYPE) {
+        content.mediaItem = { documentId: body.id, titleEn: body.title };
       } else if (body.purpose === "describing") {
         content.descriptionItems.push({
           key: uuidv4(),
@@ -313,6 +331,17 @@ export default function POITemplate(
           onChange={(event) => updateActiveLocaleContent({ title: event.target.value })}
         />
       </Grid>
+      {typeof searchMediaItems === 'function' && (
+        <Grid>
+          <MediaItemRelationField
+            label={t('poi_media_item')}
+            onChange={(mediaItem) => updateActiveLocaleContent({ mediaItem })}
+            onSearch={searchMediaItems}
+            t={t}
+            value={activeLocaleContent.mediaItem}
+          />
+        </Grid>
+      )}
       <Grid>
         <Typography variant="formSectionTitle">{t('poi_description_section')}</Typography>
       </Grid>
