@@ -39,7 +39,14 @@ export const DESCRIPTION_ITEM_TYPES = {
  * in the repeatable descriptionItems list. */
 export const MEDIA_ITEM_BODY_TYPE = 'MediaItem';
 
-const EMPTY_LOCALE_CONTENT = { descriptionItems: [], mediaItem: null, title: "" };
+// Deliberately has no `mediaItem` key: applyPoiBodyConversion only emits a MediaItem body item
+// for a locale whose content object actually HAS that key (added either by rehydrating an
+// existing one, or by the user touching MediaItemRelationField - see its onChange below), so
+// that a locale where the editor never touched media doesn't get its mediaEn/mediaAr silently
+// disconnected server-side. Baking `mediaItem: null` into this fallback would defeat that: any
+// edit to title/description alone (which merges this fallback in via updateActiveLocaleContent)
+// would then look identical to an explicit "no media" clear.
+const EMPTY_LOCALE_CONTENT = { descriptionItems: [], title: "" };
 
 /** Read one locale's title/descriptionItems/mediaItem out of maeData.contentByLocale,
  * defaulting to empty content for a locale the editor hasn't touched yet (never written into
@@ -47,7 +54,7 @@ const EMPTY_LOCALE_CONTENT = { descriptionItems: [], mediaItem: null, title: "" 
  * as an empty Strapi row).
  * @param {object} contentByLocale
  * @param {string} locale
- * @returns {{ title: string, descriptionItems: Array, mediaItem: (object|null) }}
+ * @returns {{ title: string, descriptionItems: Array, mediaItem: (object|null|undefined) }}
  */
 const getLocaleContent = (contentByLocale, locale) => contentByLocale[locale] ?? EMPTY_LOCALE_CONTENT;
 
@@ -81,6 +88,14 @@ export const isValidPointTarget = (maeData) => {
  * into contentByLocale (the editor never switched to it, or switched but never typed anything)
  * is simply absent from the saved body - it is not re-saved as an empty translation.
  *
+ * A locale's MediaItem body item follows a stricter rule than title/description: it is emitted
+ * only when that locale's content object actually HAS a `mediaItem` key (own-property check, not
+ * a truthiness check) - added either by rehydrating an existing MediaItem body item, or by the
+ * user touching MediaItemRelationField (attaching or explicitly clearing one). A locale whose
+ * `mediaItem` key is absent - the editor never rendered/touched that field for it - emits nothing,
+ * so the server leaves that language's mediaEn/mediaAr relation alone rather than reading silence
+ * as "detach it". Only an explicit clear (key present, value null) tells the server to disconnect.
+ *
  * Journey membership (dbf:journey) and cross-map linking (dbf:linkedMap) are deliberately NOT
  * read or written here: those are relations managed from the Strapi backoffice, not from the
  * annotation editor. `stateToSave` is the same object as `state` (mutated in place, matching
@@ -95,32 +110,35 @@ export const applyPoiBodyConversion = (state) => {
   const { contentByLocale } = stateToSave.maeData;
 
   stateToSave.body = Object.entries(contentByLocale)
-    .flatMap(([language, { title, descriptionItems, mediaItem }]) => [
-      {
-        language,
-        purpose: 'identifying',
-        type: DESCRIPTION_ITEM_TYPES.TEXT,
-        value: isEmptyValue(title) ? getDefaultValue() : title,
-      },
-      ...descriptionItems
-        .filter((item) => !isEmptyValue(item.value))
-        .map((item) => (item.type === DESCRIPTION_ITEM_TYPES.TEXT
-          ? {
-            language, purpose: "describing", type: DESCRIPTION_ITEM_TYPES.TEXT, value: item.value
-          }
-          : {
-            id: item.value, language, purpose: "describing", type: item.type
-          })),
-      ...(mediaItem
-        ? [{
-          id: mediaItem.documentId,
+    .flatMap(([language, content]) => {
+      const { title, descriptionItems, mediaItem } = content;
+      return [
+        {
           language,
-          purpose: 'describing',
-          title: mediaItem.titleEn,
-          type: MEDIA_ITEM_BODY_TYPE,
-        }]
-        : []),
-    ]);
+          purpose: 'identifying',
+          type: DESCRIPTION_ITEM_TYPES.TEXT,
+          value: isEmptyValue(title) ? getDefaultValue() : title,
+        },
+        ...descriptionItems
+          .filter((item) => !isEmptyValue(item.value))
+          .map((item) => (item.type === DESCRIPTION_ITEM_TYPES.TEXT
+            ? {
+              language, purpose: "describing", type: DESCRIPTION_ITEM_TYPES.TEXT, value: item.value
+            }
+            : {
+              id: item.value, language, purpose: "describing", type: item.type
+            })),
+        ...('mediaItem' in content
+          ? [{
+            id: mediaItem?.documentId ?? null,
+            language,
+            purpose: 'describing',
+            title: mediaItem?.titleEn ?? null,
+            type: MEDIA_ITEM_BODY_TYPE,
+          }]
+          : []),
+      ];
+    });
 
   return stateToSave;
 };
@@ -184,11 +202,15 @@ export default function POITemplate(
     maeAnnotation.body.forEach((body) => {
       const locale = body.language;
       if (!locale) return;
-      const content = contentByLocale[locale] ?? { descriptionItems: [], mediaItem: null, title: "" };
+      // No `mediaItem` key here either, for the same reason as EMPTY_LOCALE_CONTENT above -
+      // only actually seeing a MediaItem body item (below) should add it.
+      const content = contentByLocale[locale] ?? { descriptionItems: [], title: "" };
       if (body.purpose === "identifying") {
         content.title = body.value ?? "";
       } else if (body.type === MEDIA_ITEM_BODY_TYPE) {
-        content.mediaItem = { documentId: body.id, titleEn: body.title };
+        // body.id is null for an explicit "no media" clear (see applyPoiBodyConversion) -
+        // that must rehydrate back to `null`, not a `{ documentId: null }` object.
+        content.mediaItem = body.id ? { documentId: body.id, titleEn: body.title } : null;
       } else if (body.purpose === "describing") {
         content.descriptionItems.push({
           key: uuidv4(),

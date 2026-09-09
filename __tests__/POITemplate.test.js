@@ -172,10 +172,27 @@ describe('applyPoiBodyConversion', () => {
     ]);
   });
 
-  it("omits the MediaItem body when no media item is attached", () => {
+  it("omits the MediaItem body entirely for a locale the media field was never touched for", () => {
     const result = applyPoiBodyConversion(basePoiState());
 
     expect(result.body.some((item) => item.type === 'MediaItem')).toBe(false);
+  });
+
+  it("emits an explicit null-id MediaItem body when a media item was attached then cleared", () => {
+    const state = basePoiState();
+    // A locale the editor's media field was touched for, but has no media attached (distinct
+    // from never having the `mediaItem` key at all - see applyPoiBodyConversion's own-property
+    // check): must still emit an explicit body item so the server disconnects mediaEn/mediaAr,
+    // instead of silently leaving a previously-attached one untouched.
+    state.maeData.contentByLocale.en.mediaItem = null;
+
+    const result = applyPoiBodyConversion(state);
+
+    expect(result.body.slice(1)).toEqual([
+      {
+        id: null, language: 'en', purpose: 'describing', title: null, type: 'MediaItem'
+      },
+    ]);
   });
 
   it("builds one identifying + describing group per locale actually present", () => {
@@ -382,5 +399,29 @@ describe('POITemplate (render)', () => {
     }, vi.fn(), [], vi.fn().mockResolvedValue([]));
 
     expect(screen.getByLabelText("poi_media_item")).toHaveValue("Dome of the Rock tour");
+  });
+
+  it("rehydrates an explicitly-cleared media item (null id) as an empty field, without crashing", () => {
+    renderPoiTemplate({
+      body: [
+        { language: "en", purpose: "identifying", type: "TextualBody", value: "Dome of the Rock" },
+        {
+          id: null, language: "en", purpose: "describing", title: null, type: "MediaItem"
+        },
+      ],
+      "dbf:kind": "POI",
+      id: "canvas1/annotation/1",
+      maeData: {
+        target: { drawingState: JSON.stringify({ shapes: [poiShape()] }) },
+        templateType: "poi"
+      },
+      motivation: "identifying",
+      target: {
+        selector: [{ type: "SvgSelector", value: "<svg><circle cx=\"10\" cy=\"20\" r=\"5\"/></svg>" }],
+        source: "canvas1"
+      }
+    }, vi.fn(), [], vi.fn().mockResolvedValue([]));
+
+    expect(screen.getByLabelText("poi_media_item")).toHaveValue("");
   });
 });
