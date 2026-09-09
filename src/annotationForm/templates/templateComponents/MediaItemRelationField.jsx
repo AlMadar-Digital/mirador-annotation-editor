@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import { Autocomplete, CircularProgress, TextField } from '@mui/material';
 
@@ -35,13 +35,18 @@ export function MediaItemRelationField({
   const debounceRef = useRef(null);
   const searchTokenRef = useRef(0);
 
+  useEffect(() => () => {
+    clearTimeout(debounceRef.current);
+    searchTokenRef.current += 1;
+  }, []);
+
   /** Run a search now, ignoring its result if a newer search has started since (stale-response
    * guard: nothing here otherwise cancels an in-flight request when the input changes again). */
   const runSearch = (query) => {
     const token = searchTokenRef.current + 1;
     searchTokenRef.current = token;
     setLoading(true);
-    onSearch(query)
+    Promise.resolve(onSearch(query))
       .then((results) => {
         if (searchTokenRef.current === token) {
           setOptions(results);
