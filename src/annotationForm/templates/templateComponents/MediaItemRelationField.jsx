@@ -10,6 +10,10 @@ const SEARCH_DEBOUNCE_MS = 300;
  * Only searches/selects, matching the "create the Media Item first, then attach it
  * here" convention every other Media Item relation in the backend already follows -
  * this never creates a new Media Item itself.
+ * @param dialogContainer - () => Element, the fullscreen editor's dialog node (matching every
+ *   other MUI popup in POITemplate) - without it, the option list renders outside the dialog's
+ *   DOM subtree and Radix's outside-pointer-events lock swallows clicks on it before they reach
+ *   an option, making the list visible but unselectable.
  * @param label
  * @param onChange - called with the selected option, or null when cleared
  * @param onSearch - (query: string) => Promise<Array<{ documentId, titleEn, mediaType, purpose }>>
@@ -18,6 +22,7 @@ const SEARCH_DEBOUNCE_MS = 300;
  * @constructor
  */
 export function MediaItemRelationField({
+  dialogContainer,
   label,
   onChange,
   onSearch,
@@ -88,12 +93,14 @@ export function MediaItemRelationField({
           }}
         />
       )}
+      slotProps={{ popper: { container: dialogContainer } }}
       value={value}
     />
   );
 }
 
 MediaItemRelationField.propTypes = {
+  dialogContainer: PropTypes.func.isRequired,
   label: PropTypes.string.isRequired,
   onChange: PropTypes.func.isRequired,
   onSearch: PropTypes.func.isRequired,

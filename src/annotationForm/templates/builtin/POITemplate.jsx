@@ -227,6 +227,7 @@ export default function POITemplate(
 
   const [annotationState, setAnnotationState] = useState(maeAnnotation);
   const [targetError, setTargetError] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [activeLocale, setActiveLocale] = useState(
     Object.keys(annotationState.maeData.contentByLocale)[0] ?? contentLocales[0]?.code
   );
@@ -318,7 +319,17 @@ export default function POITemplate(
       playerReferences.getMediaTrueHeight(),
       1 / playerReferences.getScale(),
     );
-    saveAnnotation(annotationState);
+    setSaving(true);
+    try {
+      // Awaited (unlike a bare fire-and-forget call) so `saving` genuinely reflects the
+      // in-flight save instead of clearing itself before the network round-trip finishes.
+      await saveAnnotation(annotationState);
+    } finally {
+      // On success the form's own companion window closes anyway (unmounting this
+      // component), so this only visibly matters on failure - where it lets the editor
+      // retry instead of the button staying stuck disabled/spinning forever.
+      setSaving(false);
+    }
   };
 
   return (
@@ -356,6 +367,7 @@ export default function POITemplate(
       {typeof searchMediaItems === 'function' && (
         <Grid>
           <MediaItemRelationField
+            dialogContainer={dialogContainer}
             label={t('poi_media_item')}
             onChange={(mediaItem) => updateActiveLocaleContent({ mediaItem })}
             onSearch={searchMediaItems}
@@ -463,6 +475,7 @@ export default function POITemplate(
         <AnnotationFormFooter
           closeFormCompanionWindow={closeFormCompanionWindow}
           saveAnnotation={saveFunction}
+          saving={saving}
           t={t}
           annotationState={annotationState}
         />

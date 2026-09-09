@@ -15,12 +15,15 @@ import { SHAPES_TOOL } from '../src/annotationForm/AnnotationFormOverlay/KonvaDr
 // placed POI marker (SHAPES_TOOL.POI, the dedicated click-to-place tool - see
 // docs/superpowers/specs/2026-09-01-poi-iiif-annotation-format-design.md in root_repo), so
 // getSvg is mocked the same way MultipleBodyTemplate.test.js mocks it, to keep these tests
-// independent of react-konva-to-svg's actual serialization.
+// independent of react-konva-to-svg's actual serialization. resizeKonvaStage is mocked too -
+// it looks up a real Konva stage by windowId (window.Konva.stages.find(...)), which only
+// exists when Konva itself has actually mounted a canvas, never true for these shallow renders.
 vi.mock('../src/annotationForm/AnnotationFormOverlay/KonvaDrawing/KonvaUtils', async () => {
   const actual = await vi.importActual('../src/annotationForm/AnnotationFormOverlay/KonvaDrawing/KonvaUtils');
   return {
     ...actual,
     getSvg: vi.fn().mockResolvedValue('<svg><circle cx="10" cy="20" r="5"/></svg>'),
+    resizeKonvaStage: vi.fn(),
   };
 });
 
@@ -423,5 +426,35 @@ describe('POITemplate (render)', () => {
     }, vi.fn(), [], vi.fn().mockResolvedValue([]));
 
     expect(screen.getByLabelText("poi_media_item")).toHaveValue("");
+  });
+
+  it("shows a spinner and disables Save/Cancel while the save is in flight, then re-enables them", async () => {
+    let resolveSave;
+    const saveAnnotation = vi.fn(() => new Promise((resolve) => { resolveSave = resolve; }));
+    renderPoiTemplate({
+      body: [],
+      "dbf:kind": "POI",
+      id: "canvas1/annotation/1",
+      maeData: {
+        target: { drawingState: JSON.stringify({ shapes: [poiShape()] }) },
+        templateType: "poi"
+      },
+      motivation: "identifying",
+      target: {
+        selector: [{ type: "SvgSelector", value: "<svg><circle cx=\"10\" cy=\"20\" r=\"5\"/></svg>" }],
+        source: "canvas1"
+      }
+    }, saveAnnotation);
+
+    fireEvent.click(screen.getByRole("button", { name: "save" }));
+
+    expect(saveAnnotation).toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "save" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "cancel" })).toBeDisabled();
+    expect(screen.getByRole("progressbar")).toBeInTheDocument();
+
+    resolveSave();
+    await waitFor(() => expect(screen.getByRole("button", { name: "save" })).not.toBeDisabled());
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
   });
 });

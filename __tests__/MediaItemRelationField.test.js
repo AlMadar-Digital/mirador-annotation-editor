@@ -13,6 +13,7 @@ describe('MediaItemRelationField', () => {
   it('shows the current value\'s title when a media item is already attached', () => {
     render(
       <MediaItemRelationField
+        dialogContainer={() => document.body}
         label="Media item"
         onChange={vi.fn()}
         onSearch={vi.fn()}
@@ -28,6 +29,7 @@ describe('MediaItemRelationField', () => {
     const onSearch = vi.fn().mockResolvedValue([domeOfTheRock, alAqsa]);
     render(
       <MediaItemRelationField
+        dialogContainer={() => document.body}
         label="Media item"
         onChange={vi.fn()}
         onSearch={onSearch}
@@ -48,6 +50,7 @@ describe('MediaItemRelationField', () => {
     const onChange = vi.fn();
     render(
       <MediaItemRelationField
+        dialogContainer={() => document.body}
         label="Media item"
         onChange={onChange}
         onSearch={onSearch}
@@ -68,6 +71,7 @@ describe('MediaItemRelationField', () => {
     const onChange = vi.fn();
     render(
       <MediaItemRelationField
+        dialogContainer={() => document.body}
         label="Media item"
         onChange={onChange}
         onSearch={vi.fn().mockResolvedValue([])}
@@ -85,6 +89,7 @@ describe('MediaItemRelationField', () => {
     const onSearch = vi.fn().mockResolvedValue([]);
     render(
       <MediaItemRelationField
+        dialogContainer={() => document.body}
         label="Media item"
         onChange={vi.fn()}
         onSearch={onSearch}
