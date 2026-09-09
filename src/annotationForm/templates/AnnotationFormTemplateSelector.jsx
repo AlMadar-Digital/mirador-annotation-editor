@@ -21,8 +21,8 @@ export default function AnnotationFormTemplateSelector({
                                                        }) {
     const { t } = useTranslation();
     const setCommentType = (template) => setCommentingType(template);
-    const { externalTemplates } = useSelector((state) => getConfig(state)).annotation;
-    const templates = TEMPLATE_TYPES(t, externalTemplates);
+    const { enabledTemplateTypes, externalTemplates } = useSelector((state) => getConfig(state)).annotation;
+    const templates = TEMPLATE_TYPES(t, externalTemplates, enabledTemplateTypes);
 
     return (
         <CardContainer>

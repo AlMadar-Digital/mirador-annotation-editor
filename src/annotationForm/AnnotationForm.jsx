@@ -10,7 +10,7 @@ import AnnotationFormTemplateSelector from './templates/AnnotationFormTemplateSe
 import {
   saveAnnotationInStorageAdapter, TEMPLATE, DEFAULT_FORM_MAP,
 } from './AnnotationFormUtils';
-import { getTemplateType } from './templates/registry';
+import { getTemplateType, TEMPLATE_TYPES } from './templates/registry';
 import { getContextParams } from '../contextParams';
 import AnnotationFormHeader from './AnnotationFormHeader';
 import AnnotationFormBody from './AnnotationFormBody';
@@ -34,7 +34,7 @@ function AnnotationForm(
 ) {
   const { t } = useTranslation();
   // TEMPLATE_REGISTRY (via getTemplateType) already defaults this to [] on its own if undefined.
-  const { externalTemplates } = config.annotation;
+  const { enabledTemplateTypes, externalTemplates } = config.annotation;
   const [templateType, setTemplateType] = useState(null);
   // eslint-disable-next-line no-underscore-dangle
   const [mediaType, setMediaType] = useState(playerReferences.getMediaType());
@@ -73,10 +73,17 @@ function AnnotationForm(
         setTemplateType(getTemplateType(t, TEMPLATE.IIIF_TYPE));
       }
     } else {
-      // Use defaultForm if configured, otherwise show selector
+      // Use defaultForm if configured, otherwise auto-pick the sole enabled+selectable
+      // template (issue #333: e.g. the Strapi maps plugin sets enabledTemplateTypes to
+      // ['poi'], so a new annotation there should never require picking POI off a
+      // one-card selector), otherwise show the selector.
       const { defaultForm } = getContextParams(config);
+      const enabledTemplates = TEMPLATE_TYPES(t, externalTemplates, enabledTemplateTypes)
+        .filter((entry) => entry.isCompatibleWithMediaType(mediaType));
       if (defaultForm && DEFAULT_FORM_MAP[defaultForm]) {
         setTemplateType(getTemplateType(t, DEFAULT_FORM_MAP[defaultForm]));
+      } else if (enabledTemplates.length === 1) {
+        setTemplateType(enabledTemplates[0]);
       }
     }
   }
@@ -269,6 +276,7 @@ AnnotationForm.propTypes = {
       defaults: PropTypes.objectOf(
         PropTypes.oneOfType([PropTypes.bool, PropTypes.func, PropTypes.number, PropTypes.string]),
       ),
+      enabledTemplateTypes: PropTypes.arrayOf(PropTypes.string),
       // eslint-disable-next-line react/forbid-prop-types
       externalTemplates: PropTypes.arrayOf(PropTypes.object),
     }),

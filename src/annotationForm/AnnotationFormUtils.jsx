@@ -74,23 +74,6 @@ export function secondsToHMSarray(secs) {
 }
 
 /**
- * Checks if a given string is a valid URL.
- * @returns {boolean} - Returns true if the string is a valid URL, otherwise false.
- */
-export const isValidUrl = (string) => {
-  if (string === '' || string === undefined || string === null) {
-    return true;
-  }
-  try {
-    // eslint-disable-next-line no-new
-    new URL(string);
-    return true;
-  } catch (_) {
-    return false;
-  }
-};
-
-/**
  * Get the current date in locale string format
  * @returns {string}
  */

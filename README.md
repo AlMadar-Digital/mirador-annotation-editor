@@ -37,6 +37,7 @@ lot of technical and functional modifications (including migration from PaperJS 
     * [Persisting Annotations](#persisting-annotations)
     * [Configuration](#configuration-)
     * [External annotation templates](#external-annotation-templates)
+    * [Restricting selectable templates](#restricting-selectable-templates)
   * [Technical aspects from the original plugin](#technical-aspects-from-the-original-plugin)
   * [Contribute](#contribute)
     * [Contributor](#contributor)
@@ -67,6 +68,11 @@ You need also to use the latest version of Mirador 4.
 ```json
 "mirador": "npm:dbf-mirador@4.2.3"
 ```
+
+The built-in POI template's description field is a CKEditor 5 rich-text editor, so your host app
+must also provide `ckeditor5` (`~47.6.1`) and `@ckeditor/ckeditor5-react` (`~11.0.1`) -
+peerDependencies, not bundled, so if your app already loads CKEditor 5 elsewhere (e.g. via
+`@_sh/strapi-plugin-ckeditor`) this reuses that single instance rather than loading a second copy.
 
 [Mirador 4 integration example](https://github.com/ProjectMirador/mirador-integration)
 
@@ -125,6 +131,7 @@ See `demo/src/index.js` for a full configuration sample.
     readonly: false, // If true, no annotation creation, edit, deleting is allowed
     tagsSuggestions: ['Mirador', 'Awesome', 'Viewer', 'IIIF', 'Template'], // Tags suggestions for autocompletion
     externalTemplates: [], // Externally-registered annotation templates - see "External annotation templates" below
+    enabledTemplateTypes: [], // Restrict the picker to these template ids - see "Restricting selectable templates" below
 };
 ```
 
@@ -176,6 +183,30 @@ See `src/annotationForm/templates/examples/exampleExternalTemplate.jsx` for a co
 example (a minimal whole-canvas star-rating template) and
 `src/annotationForm/templates/registry.jsx`'s `TEMPLATE_REGISTRY` JSDoc for the full contract
 reference.
+
+### Restricting selectable templates
+
+`config.annotation.enabledTemplateTypes`: an array of template ids (built-in `TEMPLATE.*` values
+and/or your own `externalTemplates` ids) - when set, the picker offers only these, instead of
+every selectable entry. Useful for an embed dedicated to a single annotation type, e.g. the
+Strapi maps plugin sets it to `['poi']` so staff editing a map's points of interest are never
+offered note/tag/expert-mode.
+
+```js
+let annotationConfig = {
+  // ... your other options ...
+  enabledTemplateTypes: ['poi'],
+};
+```
+
+When this narrows things down to exactly one enabled (and media-compatible) template, a *new*
+annotation opens that template directly instead of showing a one-card picker - the same
+auto-open behavior `defaultForm` already gives you, but without needing to also set it. Leaving
+this unset (or empty) offers every selectable template, unchanged from today's default.
+
+This only restricts the picker: an *existing* annotation saved with a template id outside the
+list still opens for editing, the same way a `selectable: false` entry (e.g. the legacy text
+comment type) already does.
 
 ## Technical aspects from the original plugin
 

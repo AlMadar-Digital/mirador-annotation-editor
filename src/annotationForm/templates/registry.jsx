@@ -1,8 +1,8 @@
 import TextFieldsIcon from '@mui/icons-material/TextFields';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import DataObjectIcon from '@mui/icons-material/DataObject';
-import PlaceIcon from '@mui/icons-material/Place';
 import React from 'react';
+import PoiIcon from '../../icons/PoiIcon';
 import IIIFTemplate, { convertIIIFAnnotationToBeSaved } from './builtin/IIIFTemplate';
 import MultipleBodyTemplate, { convertMultipleBodyAnnotationToBeSaved } from './builtin/MultipleBodyTemplate';
 import POITemplate, { convertPoiAnnotationToBeSaved } from './builtin/POITemplate';
@@ -74,7 +74,7 @@ export const TEMPLATE_REGISTRY = (t, externalTemplates = []) => {
       Component: POITemplate,
       convertToAnnotation: convertPoiAnnotationToBeSaved,
       description: t('poi_description'),
-      icon: <PlaceIcon fontSize="small" />,
+      icon: <PoiIcon fontSize="small" />,
       id: TEMPLATE.POI_TYPE,
       isCompatibleWithMediaType: imageOnly,
       label: t('poi'),
@@ -135,9 +135,30 @@ export const TEMPLATE_REGISTRY = (t, externalTemplates = []) => {
   return [...builtInTemplates, ...validExternalTemplates];
 };
 
-/** List of the templates offered by the template picker */
-export const TEMPLATE_TYPES = (t, externalTemplates = []) => TEMPLATE_REGISTRY(t, externalTemplates)
-  .filter((entry) => entry.selectable);
+/**
+ * List of the templates offered by the template picker.
+ *
+ * `enabledTemplateTypes` (issue #333, `config.annotation.enabledTemplateTypes`) restricts this
+ * further to only the listed ids - e.g. the Strapi maps plugin sets it to `['poi']` so staff
+ * editing a map's POIs is never offered note/tag/expert-mode for a *new* annotation. Left
+ * undefined/empty, every selectable entry is offered (today's default, unrestricted behavior).
+ * This only affects the picker: getTemplateType/TEMPLATE_REGISTRY stay unrestricted, so an
+ * *existing* annotation of a disabled type still opens for editing - same precedent as
+ * `selectable: false` entries above.
+ * @param {Function} t
+ * @param {object[]} externalTemplates
+ * @param {?string[]} enabledTemplateTypes
+ * @returns {object[]}
+ */
+export const TEMPLATE_TYPES = (t, externalTemplates = [], enabledTemplateTypes = null) => (
+  TEMPLATE_REGISTRY(t, externalTemplates)
+    .filter((entry) => entry.selectable)
+    .filter((entry) => (
+      !Array.isArray(enabledTemplateTypes) || enabledTemplateTypes.length === 0
+        ? true
+        : enabledTemplateTypes.includes(entry.id)
+    ))
+);
 
 /** Return the registry entry for a given templateType id, selectable or not */
 export const getTemplateType = (t, templateType, externalTemplates = []) => TEMPLATE_REGISTRY(
