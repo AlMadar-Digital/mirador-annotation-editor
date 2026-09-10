@@ -262,7 +262,29 @@ describe('applyPoiBodyConversion', () => {
 });
 
 describe('convertPoiAnnotationToBeSaved', () => {
-  it('preserves motivation and dbf:kind, and derives target from the placed POI marker', async () => {
+  // The canonical shape from docs/superpowers/specs/2026-09-01-poi-iiif-annotation-format-design.md
+  // §1 in root_repo: a single SvgSelector (not the generic two-selector array other templates use)
+  // and a structured `source` carrying its own canvas/manifest reference.
+  it('preserves motivation and dbf:kind, and derives the canonical SpecificResource target from the placed POI marker', async () => {
+    const state = basePoiState();
+
+    const result = await convertPoiAnnotationToBeSaved(
+      state,
+      {
+        canvas: { id: 'canvas1' }, playerReferences, windowId: 'window1', manifestId: 'manifest1',
+      },
+    );
+
+    expect(result.motivation).toBe('identifying');
+    expect(result['dbf:kind']).toBe('POI');
+    expect(result.target).toEqual({
+      type: 'SpecificResource',
+      source: { id: 'canvas1', type: 'Canvas', partOf: { id: 'manifest1', type: 'Manifest' } },
+      selector: { type: 'SvgSelector', value: '<svg><circle cx="10" cy="20" r="5"/></svg>' },
+    });
+  });
+
+  it('omits source.partOf when no manifestId is available', async () => {
     const state = basePoiState();
 
     const result = await convertPoiAnnotationToBeSaved(
@@ -270,14 +292,10 @@ describe('convertPoiAnnotationToBeSaved', () => {
       { canvas: { id: 'canvas1' }, playerReferences, windowId: 'window1' },
     );
 
-    expect(result.motivation).toBe('identifying');
-    expect(result['dbf:kind']).toBe('POI');
     expect(result.target).toEqual({
-      selector: [
-        { type: 'SvgSelector', value: '<svg><circle cx="10" cy="20" r="5"/></svg>' },
-        { type: 'FragmentSelector', value: 'canvas1#' },
-      ],
-      source: 'canvas1',
+      type: 'SpecificResource',
+      source: { id: 'canvas1', type: 'Canvas' },
+      selector: { type: 'SvgSelector', value: '<svg><circle cx="10" cy="20" r="5"/></svg>' },
     });
   });
 });

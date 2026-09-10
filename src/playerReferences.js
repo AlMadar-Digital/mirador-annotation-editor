@@ -2,6 +2,7 @@ import {
   getVisibleCanvases,
   getVisibleCanvasAudioResources,
   getVisibleCanvasVideoResources,
+  getWindow,
 } from 'dbf-mirador';
 import { MEDIA_TYPES } from './annotationForm/AnnotationFormUtils';
 
@@ -14,6 +15,8 @@ export class WindowPlayer {
   canvases;
 
   windowId;
+
+  manifestId;
 
   overlay;
 
@@ -36,6 +39,7 @@ export class WindowPlayer {
     // Get Visible Canvases return an array but inside the array there is only one element
     this.canvases = getVisibleCanvases(state, { windowId });
     this.windowId = windowId;
+    this.manifestId = getWindow(state, { windowId })?.manifestId;
     this.isInitCorrectly = false;
 
     if (this.isInitializedCorrectly()) {
@@ -120,6 +124,15 @@ export class WindowPlayer {
    */
   getWindowId() {
     return this.windowId;
+  }
+
+  /**
+   * Get the id of the manifest the current window is showing - used to populate
+   * target.source.partOf on a POI's canonical IIIF target shape (see IIIFUtils.js).
+   * @returns {string|undefined}
+   */
+  getManifestId() {
+    return this.manifestId;
   }
 
   /** ***********************************************************

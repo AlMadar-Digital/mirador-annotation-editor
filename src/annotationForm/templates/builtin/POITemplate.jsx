@@ -146,17 +146,21 @@ export const applyPoiBodyConversion = (state) => {
 /**
  * Convert a POITemplate annotationState into a savable IIIF annotation: build the body array
  * (applyPoiBodyConversion), then finalize the spatial target through the same shared pipeline
- * every other spatial-target template uses.
+ * every other spatial-target template uses. Unlike other templates, POI's target ends up in the
+ * canonical SpecificResource shape (see IIIFUtils.js's getIIIFTargetFromMaeData POI_TYPE branch),
+ * which is why `manifestId` is threaded through here specifically.
  * @param {object} state
- * @param {{ canvas: object, windowId: string, playerReferences: object }} ctx
+ * @param {{ canvas: object, windowId: string, playerReferences: object, manifestId: string }} ctx
  * @returns {Promise<object>}
  */
 export const convertPoiAnnotationToBeSaved = async (
   state,
-  { canvas, windowId, playerReferences },
+  {
+    canvas, windowId, playerReferences, manifestId,
+  },
 ) => {
   const stateToSave = applyPoiBodyConversion(state);
-  return finalizeSpatialTarget(stateToSave, canvas, windowId, playerReferences);
+  return finalizeSpatialTarget(stateToSave, canvas, windowId, playerReferences, manifestId);
 };
 
 /** POI Template */

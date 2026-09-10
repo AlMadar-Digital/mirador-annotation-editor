@@ -36,7 +36,8 @@ const imageOnly = (mediaType) => mediaType === MEDIA_TYPES.IMAGE;
  *   the same props as every built-in template: annotation, canvases, closeFormCompanionWindow,
  *   playerReferences, saveAnnotation, t, windowId (see AnnotationFormBody.jsx)
  * - convertToAnnotation(state, ctx): converts annotationState to a savable IIIF annotation.
- *   ctx is `{ canvas, windowId, playerReferences }`
+ *   ctx is `{ canvas, windowId, playerReferences, manifestId }` - manifestId is only consumed by
+ *   POI_TYPE today (see POITemplate.jsx / IIIFUtils.js's getIIIFTargetFromMaeData)
  *
  * Phase 5 (tetras-dbf/root_repo#12): open for external registration via
  * `config.annotation.externalTemplates`, an array of entries following this same contract - see the

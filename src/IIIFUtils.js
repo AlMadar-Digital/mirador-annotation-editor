@@ -121,11 +121,37 @@ const getIIIFTargetAsFragmentSVGSelector = (maeTarget, canvasId) => {
   };
 };
 
+/**
+ * Get a POI's IIIF target as the canonical `SpecificResource` shape from
+ * docs/superpowers/specs/2026-09-01-poi-iiif-annotation-format-design.md §1: a single
+ * `SvgSelector` (not the generic two-selector array used by other templates) whose `value` is
+ * exactly one `<circle cx cy r/>`, and a structured `source` carrying its own canvas/manifest
+ * reference (`partOf`) rather than a bare canvas-id string - matching the `poi.target` field
+ * shape strapi-plugins' StrapiAnnotationAdapter (strapi-plugins#10) expects.
+ * @param {object} maeTarget
+ * @param {string} canvasId
+ * @param {string} [manifestId] - omitted (no `partOf`) when unavailable, e.g. legacy call paths
+ * @returns {{type: string, source: object, selector: {type: string, value: string}}}
+ */
+const getIIIFTargetAsSpecificResource = (maeTarget, canvasId, manifestId) => ({
+  type: 'SpecificResource',
+  source: {
+    id: canvasId,
+    type: 'Canvas',
+    ...(manifestId && { partOf: { id: manifestId, type: 'Manifest' } }),
+  },
+  selector: {
+    type: 'SvgSelector',
+    value: maeTarget.svg,
+  },
+});
+
 /** Get the IIIF target from the annotation state
  * @param maeData
  * @param canvasId
  * @param windowId NEEDED By MAEV
  * @param playerScale NEEDED By MAEV
+ * @param manifestId used only by TEMPLATE.POI_TYPE, to populate target.source.partOf
  * @returns {{selector: [{type: string, value},{type: string, value: string}], source}|*|string}
  */
 export const getIIIFTargetFromMaeData = (
@@ -133,6 +159,7 @@ export const getIIIFTargetFromMaeData = (
   canvasId,
   windowId = null,
   playerScale = null,
+  manifestId = null,
 ) => {
   const maeTarget = maeData.target;
   const { templateType } = maeData;
@@ -140,10 +167,14 @@ export const getIIIFTargetFromMaeData = (
   switch (templateType) {
     case TEMPLATE.IIIF_TYPE:
       return maeTarget;
+    case TEMPLATE.POI_TYPE:
+      // POI always uses the canonical SpecificResource shape (design doc §1) - never the
+      // rectangle-string simplification below, since a POI's drawn shape is always a
+      // SHAPES_TOOL.POI point marker, never a rectangle.
+      return getIIIFTargetAsSpecificResource(maeTarget, canvasId, manifestId);
     case TEMPLATE.TAGGING_TYPE:
     case TEMPLATE.TEXT_TYPE:
     case TEMPLATE.MULTIPLE_BODY_TYPE:
-    case TEMPLATE.POI_TYPE:
       // In some case the target can be simplified in a string
       if (isSimpleTarget(maeTarget.drawingState.shapes)) {
         console.info('Simple target detected');
@@ -480,6 +511,7 @@ const SPATIAL_TARGET_TEMPLATE_TYPES = [
  * @param {object} canvas
  * @param {string} windowId
  * @param {object} playerReferences
+ * @param {string} [manifestId] - used only by TEMPLATE.POI_TYPE, see getIIIFTargetFromMaeData
  * @returns {Promise<object>} the same annotationState, mutated
  */
 export const finalizeSpatialTarget = async (
@@ -487,6 +519,7 @@ export const finalizeSpatialTarget = async (
   canvas,
   windowId,
   playerReferences,
+  manifestId,
 ) => {
   const annotationStateForSaving = annotationState;
 
@@ -523,6 +556,7 @@ export const finalizeSpatialTarget = async (
     canvas.id,
     windowId,
     playerReferences.getScale(),
+    manifestId,
   );
 
   annotationStateForSaving.maeData.target.drawingState = JSON.stringify(

@@ -168,6 +168,37 @@ describe('getIIIFTargetFromMaeData', () => {
 
     expect(getIIIFTargetFromMaeData(maeData, 'canvas1')).toBe('canvas1#xywh=0,0,800,600');
   });
+
+  // POI_TYPE never goes through the rectangle-simplification / two-selector-array paths above -
+  // it always uses the canonical SpecificResource shape from
+  // docs/superpowers/specs/2026-09-01-poi-iiif-annotation-format-design.md §1 in root_repo, even
+  // when the drawn shape happens to be a single un-rotated shape matching the target tool colors
+  // (POI markers are never SHAPES_TOOL.RECTANGLE in practice, but this pins the dispatch order).
+  describe('POI_TYPE', () => {
+    const poiMaeData = () => ({
+      target: {
+        drawingState: { shapes: [{ type: 'poi', x: 10, y: 20 }] },
+        svg: '<svg><circle cx="10" cy="20" r="5"/></svg>',
+      },
+      templateType: TEMPLATE.POI_TYPE,
+    });
+
+    it('returns a SpecificResource target with a single SvgSelector and source.partOf when manifestId is given', () => {
+      expect(getIIIFTargetFromMaeData(poiMaeData(), 'canvas1', 'window1', 1, 'manifest1')).toEqual({
+        type: 'SpecificResource',
+        source: { id: 'canvas1', type: 'Canvas', partOf: { id: 'manifest1', type: 'Manifest' } },
+        selector: { type: 'SvgSelector', value: '<svg><circle cx="10" cy="20" r="5"/></svg>' },
+      });
+    });
+
+    it('omits source.partOf when manifestId is not given', () => {
+      expect(getIIIFTargetFromMaeData(poiMaeData(), 'canvas1')).toEqual({
+        type: 'SpecificResource',
+        source: { id: 'canvas1', type: 'Canvas' },
+        selector: { type: 'SvgSelector', value: '<svg><circle cx="10" cy="20" r="5"/></svg>' },
+      });
+    });
+  });
 });
 
 describe('convertAnnotationStateToBeSaved', () => {
