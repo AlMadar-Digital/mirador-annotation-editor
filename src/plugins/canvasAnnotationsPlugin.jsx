@@ -15,6 +15,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import i18n from 'i18next';
 import CanvasListItem from '../CanvasListItem';
+import SortableCanvasAnnotationsList from '../SortableCanvasAnnotationsList';
 import AnnotationActionsContext from '../AnnotationActionsContext';
 import SingleCanvasDialog from '../SingleCanvasDialog';
 import translations from '../locales/locales';
@@ -166,6 +167,19 @@ function CanvasAnnotationsWrapper({
     listContainerComponent: CanvasListItem,
   };
 
+  // The two-level sortable list (issue #344) only makes sense for the maps plugin's own poi/
+  // journey annotations (dbf:kind) - every other annotation motivation this package also
+  // supports (tagging/notes/IIIF expert mode) keeps the original flat TargetComponent list.
+  const rawItemsForCanvas = useMemo(() => {
+    const canvasId = targetProps?.canvasId;
+    if (!canvasId || !annotationsOnCanvases[canvasId]) return [];
+    return Object.values(annotationsOnCanvases[canvasId])
+      .flatMap((page) => page?.json?.items ?? []);
+  }, [targetProps?.canvasId, annotationsOnCanvases]);
+  const hasMapsAnnotations = rawItemsForCanvas.some(
+    (item) => item['dbf:kind'] === 'POI' || item['dbf:kind'] === 'Journey',
+  );
+
   const contextValue = useMemo(() => ({
     addCompanionWindow,
     annotationEditCompanionWindowIsOpened,
@@ -193,8 +207,26 @@ function CanvasAnnotationsWrapper({
   return (
     <AnnotationActionsContext.Provider value={contextValue}>
       <div ref={wrapperRef} style={{ height: '100%', position: 'relative' }}>
-        {/* eslint-disable-next-line react/jsx-props-no-spreading */}
-        <TargetComponent {...props} />
+        {hasMapsAnnotations ? (
+          <SortableCanvasAnnotationsList
+            canvasId={targetProps.canvasId}
+            deselectAnnotation={targetProps.deselectAnnotation}
+            hoverAnnotation={targetProps.hoverAnnotation}
+            hoveredAnnotationIds={targetProps.hoveredAnnotationIds}
+            index={targetProps.index}
+            items={rawItemsForCanvas}
+            label={targetProps.label}
+            receiveAnnotation={receiveAnnotation}
+            selectAnnotation={targetProps.selectAnnotation}
+            selectedAnnotationId={targetProps.selectedAnnotationId}
+            storageAdapter={config.annotation.adapter}
+            totalSize={targetProps.totalSize}
+            windowId={targetProps.windowId}
+          />
+        ) : (
+          // eslint-disable-next-line react/jsx-props-no-spreading
+          <TargetComponent {...props} />
+        )}
       </div>
 
       {windowViewType !== 'single' && (

@@ -1,9 +1,11 @@
 import TextFieldsIcon from '@mui/icons-material/TextFields';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import DataObjectIcon from '@mui/icons-material/DataObject';
+import RouteIcon from '@mui/icons-material/Route';
 import React from 'react';
 import PoiIcon from '../../icons/PoiIcon';
 import IIIFTemplate, { convertIIIFAnnotationToBeSaved } from './builtin/IIIFTemplate';
+import JourneyTemplate, { convertJourneyAnnotationToBeSaved } from './builtin/JourneyTemplate';
 import MultipleBodyTemplate, { convertMultipleBodyAnnotationToBeSaved } from './builtin/MultipleBodyTemplate';
 import POITemplate, { convertPoiAnnotationToBeSaved } from './builtin/POITemplate';
 import TaggingTemplate, { convertTaggingAnnotationToBeSaved } from './builtin/TaggingTemplate';
@@ -78,6 +80,16 @@ export const TEMPLATE_REGISTRY = (t, externalTemplates = []) => {
       id: TEMPLATE.POI_TYPE,
       isCompatibleWithMediaType: imageOnly,
       label: t('poi'),
+      selectable: true,
+    },
+    {
+      Component: JourneyTemplate,
+      convertToAnnotation: convertJourneyAnnotationToBeSaved,
+      description: t('journey_description'),
+      icon: <RouteIcon fontSize="small" />,
+      id: TEMPLATE.JOURNEY_TYPE,
+      isCompatibleWithMediaType: imageOnly,
+      label: t('journey'),
       selectable: true,
     },
     {
