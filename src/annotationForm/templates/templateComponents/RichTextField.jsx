@@ -140,7 +140,12 @@ export function RichTextField({
           licenseKey: 'GPL',
           placeholder,
           plugins: PLUGINS,
-          toolbar: TOOLBAR,
+          // `shouldNotGroupWhenFull` disables CKEditor's default behaviour of hiding
+          // overflowing buttons behind a "»" dropdown when the panel is too narrow -
+          // instead the toolbar wraps onto additional lines (see .ck-toolbar__items'
+          // `flex-wrap: wrap` in ckeditor5.css), which keeps every button reachable
+          // without introducing horizontal scroll in the narrow POI sidebar.
+          toolbar: { items: TOOLBAR, shouldNotGroupWhenFull: true },
         }}
         data={value}
         editor={ClassicEditor}
