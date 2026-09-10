@@ -62,6 +62,7 @@ export const en = {
   poi: 'POI',
   poi_click_to_place: 'Click on the image to place the POI marker. Click again to move it.',
   poi_description: 'Point of interest with a target, a description and optional links',
+  poi_description_placeholder: 'Describe this point of interest…',
   poi_description_section: 'Description',
   poi_language: "Language",
   poi_media_item: 'Media item',

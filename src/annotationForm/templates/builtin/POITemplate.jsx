@@ -362,6 +362,7 @@ export default function POITemplate(
       <Grid>
         <RichTextField
           onChange={(html) => updateActiveLocaleContent({ description: html })}
+          placeholder={t('poi_description_placeholder')}
           rtl={activeLocaleIsRtl}
           value={activeLocaleContent.description}
         />

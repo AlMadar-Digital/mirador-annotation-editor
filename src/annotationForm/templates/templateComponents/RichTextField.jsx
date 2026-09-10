@@ -97,17 +97,40 @@ const PLUGINS = [
  * provides, instead of bundling a second copy - CKEditor5 throws at runtime if two separate
  * copies of its core end up loaded on the same page.
  * @param {(html: string) => void} onChange
- * @param {boolean} rtl - whether the active locale reads right-to-left. Sets CKEditor's own
- *   `language.content` (not just a CSS override), so the editable area's direction and text
- *   alignment follow CKEditor's built-in RTL support the same way Strapi's own CKEditor fields
- *   do for an *Ar field (see apps/strapi/src/admin/rtl-fields.css).
+ * @param {string} placeholder - placeholder text shown in the empty editable area.
+ * @param {boolean} rtl - whether the active locale reads right-to-left. `language.content` alone
+ *   (CKEditor's per-instance content-language config) does NOT flip the editable area's actual
+ *   direction/alignment - it only feeds direction-aware plugin behaviour (e.g. table cell
+ *   defaults, keyboard navigation), so it's paired here with the same kind of CSS override
+ *   apps/strapi/src/admin/rtl-fields.css applies for Strapi's own *Ar CKEditor fields, and
+ *   POITemplate's title TextField applies via a plain `dir`/`textAlign` override.
  * @param {string} value - the field's current HTML value
  */
-export function RichTextField({ onChange, rtl, value }) {
+export function RichTextField({
+  onChange, placeholder, rtl, value,
+}) {
   return (
     <Box
       sx={{
+        '& .ck-content': { overflowWrap: 'break-word' },
+        '& .ck-content *': rtl ? {
+          direction: 'rtl',
+          textAlign: 'right',
+        } : undefined,
+        '& .ck-content img, & .ck-content table': { maxWidth: '100%' },
+        '& .ck-editor, & .ck-editor__editable': { maxWidth: '100%' },
         '& .ck-editor__editable': { minHeight: '150px' },
+        '& .ck-editor__editable, & .ck-content': rtl ? {
+          direction: 'rtl',
+          textAlign: 'right',
+          unicodeBidi: 'plaintext',
+        } : undefined,
+        maxWidth: '100%',
+        // Without this, a flex/grid item (POITemplate's <Grid> column) won't shrink below
+        // its content's intrinsic min-content width - so an embedded table, long unbroken
+        // URL, or the toolbar's fixed set of buttons could force this field (and the whole
+        // sidebar) wider than the annotation panel instead of wrapping/scrolling internally.
+        minWidth: 0,
       }}
     >
       <CKEditor
@@ -115,6 +138,7 @@ export function RichTextField({ onChange, rtl, value }) {
           heading: { options: HEADING_OPTIONS },
           language: { content: rtl ? 'ar' : 'en', ui: 'en' },
           licenseKey: 'GPL',
+          placeholder,
           plugins: PLUGINS,
           toolbar: TOOLBAR,
         }}
@@ -128,11 +152,13 @@ export function RichTextField({ onChange, rtl, value }) {
 
 RichTextField.propTypes = {
   onChange: PropTypes.func.isRequired,
+  placeholder: PropTypes.string,
   rtl: PropTypes.bool,
   value: PropTypes.string,
 };
 
 RichTextField.defaultProps = {
+  placeholder: undefined,
   rtl: false,
   value: '',
 };
