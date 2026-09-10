@@ -201,6 +201,11 @@ const convertIIIFBodyToMae = (anno) => {
   // maeData.textBody), so textBody is intentionally left empty here.
   if (anno['dbf:kind'] === 'POI') {
     templateType = TEMPLATE.POI_TYPE;
+  } else if (anno['dbf:kind'] === 'Journey') {
+    // Same reasoning as the POI branch above: a journey has no spatial target and derives its
+    // title/description straight from `anno.body` itself (see JourneyTemplate.jsx), so textBody
+    // is intentionally left empty here too.
+    templateType = TEMPLATE.JOURNEY_TYPE;
   } else if (anno.motivation === 'tagging' || (Array.isArray(anno.motivation) && anno.motivation.includes('tagging'))) {
     templateType = TEMPLATE.TAGGING_TYPE;
   } else {
