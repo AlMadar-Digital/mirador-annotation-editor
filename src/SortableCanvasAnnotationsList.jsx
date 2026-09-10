@@ -65,15 +65,11 @@ export default function SortableCanvasAnnotationsList({
 
   const persist = useCallback((annotation) => {
     const adapter = storageAdapter(canvasId);
-    adapter.update(annotation).then((annoPage) => {
+    return adapter.update(annotation).then((annoPage) => {
       receiveAnnotation(canvasId, adapter.annotationPageId, annoPage);
     });
   }, [storageAdapter, canvasId, receiveAnnotation]);
 
-  // Merges a reordered slice (the top level, or one journey's pois) back into the shared flat
-  // `localItems` state by id, and persists whichever entries actually changed position/parent -
-  // see the module comment above for why both lists stay flat/raw-shaped rather than nesting
-  // wrapper objects, so a cross-list move never needs reshaping an item.
   const mergeSlice = useCallback((updatedSlice) => {
     setLocalItems((current) => {
       const byId = new Map(current.map((entry) => [entry.id, entry]));
@@ -82,7 +78,10 @@ export default function SortableCanvasAnnotationsList({
       });
       return Array.from(byId.values());
     });
-    updatedSlice.forEach((entry) => persist(entry));
+    updatedSlice.reduce(
+      (chain, entry) => chain.then(() => persist(entry)),
+      Promise.resolve(),
+    );
   }, [persist]);
 
   const handleTopLevelSetList = useCallback((newList) => {
