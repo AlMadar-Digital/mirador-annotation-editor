@@ -140,6 +140,7 @@ export default function SortableCanvasAnnotationsList({
       </Typography>
       <ReactSortable
         animation={150}
+        forceFallback
         group={{ name: 'maps-annotation-list', put: true }}
         list={topLevelList}
         setList={handleTopLevelSetList}
@@ -152,6 +153,7 @@ export default function SortableCanvasAnnotationsList({
               {renderRow(entry.item)}
               <ReactSortable
                 animation={150}
+                forceFallback
                 group={{
                   name: 'maps-annotation-list',
                   put: (toList, fromList, dragEl) => dragEl.getAttribute('data-kind') === 'POI',
@@ -162,12 +164,16 @@ export default function SortableCanvasAnnotationsList({
                 style={{ listStyle: 'none', margin: 0, paddingInlineStart: 24 }}
               >
                 {entry.pois.map((poi) => (
-                  <React.Fragment key={poi.id}>{renderRow(poi)}</React.Fragment>
+                  <li key={poi.id} style={{ listStyle: 'none' }} data-kind="POI">
+                    {renderRow(poi)}
+                  </li>
                 ))}
               </ReactSortable>
             </li>
           ) : (
-            <React.Fragment key={entry.id}>{renderRow(entry.item)}</React.Fragment>
+            <li key={entry.id} style={{ listStyle: 'none' }} data-kind="POI">
+              {renderRow(entry.item)}
+            </li>
           )
         ))}
       </ReactSortable>
