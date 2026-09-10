@@ -3,6 +3,9 @@ import annotationPlugins from '../../src';
 import LocalStorageAdapter from '../../src/annotationAdapter/LocalStorageAdapter';
 
 import { manifestsCatalog } from './manifestsCatalog';
+import { seedJourneyDemoAnnotations } from './seedJourneyDemoAnnotations';
+
+seedJourneyDemoAnnotations();
 
 const config = {
   annotation: {

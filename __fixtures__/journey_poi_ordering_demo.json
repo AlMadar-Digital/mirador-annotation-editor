@@ -1,0 +1,154 @@
+{
+  "id": "localStorage://?canvasId=https://resources.mirador-multi-user.com/f676f10ea711a0a00f14cce0667aec5e1458b5ff/Map-of-the-Nile-River-and-surrounding-areas.json/1786874554449/canvas/1786874554449",
+  "type": "AnnotationPage",
+  "items": [
+    {
+      "id": "https://example.org/mae-fixtures/journey-nile-delta",
+      "type": "Annotation",
+      "motivation": "identifying",
+      "dbf:kind": "Journey",
+      "dbf:order": 0,
+      "target": "https://resources.mirador-multi-user.com/f676f10ea711a0a00f14cce0667aec5e1458b5ff/Map-of-the-Nile-River-and-surrounding-areas.json/1786874554449/canvas/1786874554449",
+      "body": [
+        { "language": "en", "purpose": "identifying", "type": "TextualBody", "value": "Nile Delta Route" },
+        { "language": "en", "purpose": "describing", "type": "TextualBody", "value": "A journey through the delta cities, from the Mediterranean coast down toward Cairo." }
+      ]
+    },
+    {
+      "id": "https://example.org/mae-fixtures/poi-alexandria",
+      "type": "Annotation",
+      "motivation": "identifying",
+      "dbf:kind": "POI",
+      "dbf:journey": { "id": "https://example.org/mae-fixtures/journey-nile-delta", "order": 0 },
+      "target": "https://resources.mirador-multi-user.com/f676f10ea711a0a00f14cce0667aec5e1458b5ff/Map-of-the-Nile-River-and-surrounding-areas.json/1786874554449/canvas/1786874554449#xywh=110,80,24,24",
+      "body": [
+        { "language": "en", "purpose": "identifying", "type": "TextualBody", "value": "Alexandria" },
+        { "language": "en", "purpose": "describing", "type": "TextualBody", "value": "First stop: the ancient port city." }
+      ]
+    },
+    {
+      "id": "https://example.org/mae-fixtures/poi-rosetta",
+      "type": "Annotation",
+      "motivation": "identifying",
+      "dbf:kind": "POI",
+      "dbf:journey": { "id": "https://example.org/mae-fixtures/journey-nile-delta", "order": 1 },
+      "target": "https://resources.mirador-multi-user.com/f676f10ea711a0a00f14cce0667aec5e1458b5ff/Map-of-the-Nile-River-and-surrounding-areas.json/1786874554449/canvas/1786874554449#xywh=260,140,24,24",
+      "body": [
+        { "language": "en", "purpose": "identifying", "type": "TextualBody", "value": "Rosetta" }
+      ]
+    },
+    {
+      "id": "https://example.org/mae-fixtures/poi-damietta",
+      "type": "Annotation",
+      "motivation": "identifying",
+      "dbf:kind": "POI",
+      "dbf:journey": { "id": "https://example.org/mae-fixtures/journey-nile-delta", "order": 2 },
+      "target": "https://resources.mirador-multi-user.com/f676f10ea711a0a00f14cce0667aec5e1458b5ff/Map-of-the-Nile-River-and-surrounding-areas.json/1786874554449/canvas/1786874554449#xywh=390,120,24,24",
+      "body": [
+        { "language": "en", "purpose": "identifying", "type": "TextualBody", "value": "Damietta" }
+      ]
+    },
+    {
+      "id": "https://example.org/mae-fixtures/journey-upper-nile",
+      "type": "Annotation",
+      "motivation": "identifying",
+      "dbf:kind": "Journey",
+      "dbf:order": 1,
+      "target": "https://resources.mirador-multi-user.com/f676f10ea711a0a00f14cce0667aec5e1458b5ff/Map-of-the-Nile-River-and-surrounding-areas.json/1786874554449/canvas/1786874554449",
+      "body": [
+        { "language": "en", "purpose": "identifying", "type": "TextualBody", "value": "Upper Nile Route" },
+        { "language": "en", "purpose": "describing", "type": "TextualBody", "value": "Heading south along the river toward Nubia." }
+      ]
+    },
+    {
+      "id": "https://example.org/mae-fixtures/poi-luxor",
+      "type": "Annotation",
+      "motivation": "identifying",
+      "dbf:kind": "POI",
+      "dbf:journey": { "id": "https://example.org/mae-fixtures/journey-upper-nile", "order": 0 },
+      "target": "https://resources.mirador-multi-user.com/f676f10ea711a0a00f14cce0667aec5e1458b5ff/Map-of-the-Nile-River-and-surrounding-areas.json/1786874554449/canvas/1786874554449#xywh=700,520,24,24",
+      "body": [
+        { "language": "en", "purpose": "identifying", "type": "TextualBody", "value": "Luxor" }
+      ]
+    },
+    {
+      "id": "https://example.org/mae-fixtures/poi-aswan",
+      "type": "Annotation",
+      "motivation": "identifying",
+      "dbf:kind": "POI",
+      "dbf:journey": { "id": "https://example.org/mae-fixtures/journey-upper-nile", "order": 1 },
+      "target": "https://resources.mirador-multi-user.com/f676f10ea711a0a00f14cce0667aec5e1458b5ff/Map-of-the-Nile-River-and-surrounding-areas.json/1786874554449/canvas/1786874554449#xywh=780,650,24,24",
+      "body": [
+        { "language": "en", "purpose": "identifying", "type": "TextualBody", "value": "Aswan" }
+      ]
+    },
+    {
+      "id": "https://example.org/mae-fixtures/poi-cairo",
+      "type": "Annotation",
+      "motivation": "identifying",
+      "dbf:kind": "POI",
+      "dbf:journey": null,
+      "dbf:order": 2,
+      "target": "https://resources.mirador-multi-user.com/f676f10ea711a0a00f14cce0667aec5e1458b5ff/Map-of-the-Nile-River-and-surrounding-areas.json/1786874554449/canvas/1786874554449#xywh=450,300,24,24",
+      "body": [
+        { "language": "en", "purpose": "identifying", "type": "TextualBody", "value": "Cairo (standalone POI)" },
+        { "language": "en", "purpose": "describing", "type": "TextualBody", "value": "Not part of any journey - drag me into one to test re-parenting." }
+      ]
+    },
+    {
+      "id": "https://example.org/mae-fixtures/poi-giza",
+      "type": "Annotation",
+      "motivation": "identifying",
+      "dbf:kind": "POI",
+      "dbf:journey": null,
+      "dbf:order": 3,
+      "target": "https://resources.mirador-multi-user.com/f676f10ea711a0a00f14cce0667aec5e1458b5ff/Map-of-the-Nile-River-and-surrounding-areas.json/1786874554449/canvas/1786874554449#xywh=420,320,24,24",
+      "body": [
+        { "language": "en", "purpose": "identifying", "type": "TextualBody", "value": "Giza Pyramids (standalone POI)" }
+      ]
+    },
+    {
+      "id": "https://example.org/mae-fixtures/poi-unordered-landmark",
+      "type": "Annotation",
+      "motivation": "identifying",
+      "dbf:kind": "POI",
+      "target": "https://resources.mirador-multi-user.com/f676f10ea711a0a00f14cce0667aec5e1458b5ff/Map-of-the-Nile-River-and-surrounding-areas.json/1786874554449/canvas/1786874554449#xywh=900,400,24,24",
+      "body": [
+        { "language": "en", "purpose": "identifying", "type": "TextualBody", "value": "Unordered Landmark (edge case: no dbf:order at all)" }
+      ]
+    },
+    {
+      "id": "https://example.org/mae-fixtures/journey-tied-order",
+      "type": "Annotation",
+      "motivation": "identifying",
+      "dbf:kind": "Journey",
+      "dbf:order": 0,
+      "target": "https://resources.mirador-multi-user.com/f676f10ea711a0a00f14cce0667aec5e1458b5ff/Map-of-the-Nile-River-and-surrounding-areas.json/1786874554449/canvas/1786874554449",
+      "body": [
+        { "language": "en", "purpose": "identifying", "type": "TextualBody", "value": "Tied-Order Journey (edge case: dbf:order 0, same as Nile Delta Route)" }
+      ]
+    },
+    {
+      "id": "https://example.org/mae-fixtures/poi-tied-b",
+      "type": "Annotation",
+      "motivation": "identifying",
+      "dbf:kind": "POI",
+      "dbf:journey": { "id": "https://example.org/mae-fixtures/journey-tied-order", "order": 0 },
+      "target": "https://resources.mirador-multi-user.com/f676f10ea711a0a00f14cce0667aec5e1458b5ff/Map-of-the-Nile-River-and-surrounding-areas.json/1786874554449/canvas/1786874554449#xywh=1000,200,24,24",
+      "body": [
+        { "language": "en", "purpose": "identifying", "type": "TextualBody", "value": "Tied POI B (edge case: journey order 0, tie-break by id vs. Tied POI A)" }
+      ]
+    },
+    {
+      "id": "https://example.org/mae-fixtures/poi-tied-a",
+      "type": "Annotation",
+      "motivation": "identifying",
+      "dbf:kind": "POI",
+      "dbf:journey": { "id": "https://example.org/mae-fixtures/journey-tied-order", "order": 0 },
+      "target": "https://resources.mirador-multi-user.com/f676f10ea711a0a00f14cce0667aec5e1458b5ff/Map-of-the-Nile-River-and-surrounding-areas.json/1786874554449/canvas/1786874554449#xywh=1050,220,24,24",
+      "body": [
+        { "language": "en", "purpose": "identifying", "type": "TextualBody", "value": "Tied POI A (edge case: journey order 0, tie-break by id vs. Tied POI B)" }
+      ]
+    }
+  ]
+}
