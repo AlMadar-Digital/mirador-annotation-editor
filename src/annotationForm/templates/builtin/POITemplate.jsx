@@ -1,47 +1,65 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState } from 'react';
 import {
-  Button,
   FormControl,
   Grid,
-  IconButton,
   InputLabel,
   MenuItem,
   Select,
   TextField,
 } from '@mui/material';
 import Typography from '@mui/material/Typography';
-import AddIcon from '@mui/icons-material/Add';
-import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
-import DeleteIcon from '@mui/icons-material/Delete';
 import PropTypes from 'prop-types';
-import { v4 as uuidv4 } from 'uuid';
-import { useSelector } from "react-redux";
-import { getConfig } from "dbf-mirador";
-import { isValidUrl, TEMPLATE } from '../../AnnotationFormUtils';
+import { useSelector } from 'react-redux';
+import { getConfig } from 'dbf-mirador';
+import { TEMPLATE } from '../../AnnotationFormUtils';
 import { resizeKonvaStage, SHAPES_TOOL } from '../../AnnotationFormOverlay/KonvaDrawing/KonvaUtils';
 import { finalizeSpatialTarget, getDefaultValue, isEmptyValue } from '../../../IIIFUtils';
 import { templateKit } from '../kit';
+import { MediaItemRelationField } from '../templateComponents/MediaItemRelationField';
+import { RichTextField } from '../templateComponents/RichTextField';
 
 const { AnnotationFormFooter, TargetFormSection } = templateKit;
 
-/** IIIF content-resource types a POI description element can be, matching poi.media's
- * allowedTypes (images/audios) plus plain text - KNOWLEDGEBASE.md §2.4 */
-export const DESCRIPTION_ITEM_TYPES = {
-  IMAGE: 'Image',
-  SOUND: 'Sound',
-  TEXT: 'TextualBody',
-};
+/** IIIF content-resource type for a POI's title/description body items: always a
+ * language-tagged HTML TextualBody. Issue #333 retired the previous repeatable, per-item-typed
+ * descriptionItems list (which could also hold Image/Sound link items) in favor of a single
+ * rich-text description per locale, matching the single scalar descriptionEn/descriptionAr
+ * Strapi field this feeds - annotationConversion.ts (server-side) already only ever reads the
+ * first describing TextualBody per language, so the richer list was silently truncated there
+ * regardless. */
+const TEXTUAL_BODY_TYPE = 'TextualBody';
 
-const EMPTY_LOCALE_CONTENT = { descriptionItems: [], title: "" };
+/** The body-item type of a POI's per-language Media Item relation (mediaEn/mediaAr) - kept
+ * distinct from TEXTUAL_BODY_TYPE since it's a single field per language holding a Strapi Media
+ * Item relation, not free text. */
+export const MEDIA_ITEM_BODY_TYPE = 'MediaItem';
 
-/** Read one locale's title/descriptionItems out of maeData.contentByLocale, defaulting to
+/** Arabic (any variant - e.g. 'ar', 'ar-SA') is the only right-to-left content locale POI's
+ * contentLocales currently offers (Strapi's GET /maps/locales hardcodes [en, ar]). Matches the
+ * name-suffix convention apps/strapi/src/admin/rtl-fields.css already uses for the same *Ar
+ * fields in Strapi's own Content Manager form, applied here per-activeLocale instead, since this
+ * form shows one language's fields at a time rather than an En/Ar pair side by side (see the
+ * language Select below). */
+const isRtlLocale = (localeCode) => (
+  typeof localeCode === 'string' && localeCode.toLowerCase().startsWith('ar')
+);
+
+// Deliberately has no `mediaItem` key: applyPoiBodyConversion only emits a MediaItem body item
+// for a locale whose content object actually HAS that key (added either by rehydrating an
+// existing one, or by the user touching MediaItemRelationField - see its onChange below), so
+// that a locale where the editor never touched media doesn't get its mediaEn/mediaAr silently
+// disconnected server-side. Baking `mediaItem: null` into this fallback would defeat that: any
+// edit to title/description alone (which merges this fallback in via updateActiveLocaleContent)
+// would then look identical to an explicit "no media" clear.
+const EMPTY_LOCALE_CONTENT = { description: '', title: '' };
+
+/** Read one locale's title/description/mediaItem out of maeData.contentByLocale, defaulting to
  * empty content for a locale the editor hasn't touched yet (never written into state - see
- * applyPoiBodyConversion, which is what keeps an untouched locale from being saved as an
- * empty Strapi row).
+ * applyPoiBodyConversion, which is what keeps an untouched locale from being saved as an empty
+ * Strapi row).
  * @param {object} contentByLocale
  * @param {string} locale
- * @returns {{ title: string, descriptionItems: Array }}
+ * @returns {{ title: string, description: string, mediaItem: (object|null|undefined) }}
  */
 const getLocaleContent = (contentByLocale, locale) => contentByLocale[locale] ?? EMPTY_LOCALE_CONTENT;
 
@@ -69,11 +87,20 @@ export const isValidPointTarget = (maeData) => {
 };
 
 /**
- * Build the saved `body` array from maeData.contentByLocale: one identifying + N describing
- * body items per locale the editor actually touched, each tagged `language` (root_repo#32 -
- * StrapiAnnotationAdapter merges/splits these per-locale server-side). A locale never written
- * into contentByLocale (the editor never switched to it, or switched but never typed anything)
- * is simply absent from the saved body - it is not re-saved as an empty translation.
+ * Build the saved `body` array from maeData.contentByLocale: one identifying + at most one
+ * describing TextualBody + at most one describing MediaItem, per locale the editor actually
+ * touched, each tagged `language` (root_repo#32 - StrapiAnnotationAdapter merges/splits these
+ * per-locale server-side). A locale never written into contentByLocale (the editor never
+ * switched to it, or switched but never typed anything) is simply absent from the saved body -
+ * it is not re-saved as an empty translation.
+ *
+ * A locale's MediaItem body item follows a stricter rule than title/description: it is emitted
+ * only when that locale's content object actually HAS a `mediaItem` key (own-property check, not
+ * a truthiness check) - added either by rehydrating an existing MediaItem body item, or by the
+ * user touching MediaItemRelationField (attaching or explicitly clearing one). A locale whose
+ * `mediaItem` key is absent - the editor never rendered/touched that field for it - emits nothing,
+ * so the server leaves that language's mediaEn/mediaAr relation alone rather than reading silence
+ * as "detach it". Only an explicit clear (key present, value null) tells the server to disconnect.
  *
  * Journey membership (dbf:journey) and cross-map linking (dbf:linkedMap) are deliberately NOT
  * read or written here: those are relations managed from the Strapi backoffice, not from the
@@ -88,23 +115,30 @@ export const applyPoiBodyConversion = (state) => {
   const stateToSave = state;
   const { contentByLocale } = stateToSave.maeData;
 
-  stateToSave.body = Object.entries(contentByLocale).flatMap(([language, { title, descriptionItems }]) => [
-    {
-      language,
-      purpose: 'identifying',
-      type: DESCRIPTION_ITEM_TYPES.TEXT,
-      value: isEmptyValue(title) ? getDefaultValue() : title,
-    },
-    ...descriptionItems
-      .filter((item) => !isEmptyValue(item.value))
-      .map((item) => (item.type === DESCRIPTION_ITEM_TYPES.TEXT
-        ? {
-          language, purpose: "describing", type: DESCRIPTION_ITEM_TYPES.TEXT, value: item.value
-        }
-        : {
-          id: item.value, language, purpose: "describing", type: item.type
-        })),
-  ]);
+  stateToSave.body = Object.entries(contentByLocale)
+    .flatMap(([language, content]) => {
+      const { description, title, mediaItem } = content;
+      return [
+        {
+          language,
+          purpose: 'identifying',
+          type: TEXTUAL_BODY_TYPE,
+          value: isEmptyValue(title) ? getDefaultValue() : title,
+        },
+        ...(isEmptyValue(description) ? [] : [{
+          language, purpose: 'describing', type: TEXTUAL_BODY_TYPE, value: description,
+        }]),
+        ...('mediaItem' in content
+          ? [{
+            id: mediaItem?.documentId ?? null,
+            language,
+            purpose: 'describing',
+            title: mediaItem?.titleEn ?? null,
+            type: MEDIA_ITEM_BODY_TYPE,
+          }]
+          : []),
+      ];
+    });
 
   return stateToSave;
 };
@@ -136,7 +170,7 @@ export default function POITemplate(
     windowId,
   },
 ) {
-  const { contentLocales = [] } = useSelector((state) => getConfig(state)).annotation ?? {};
+  const { contentLocales = [], searchMediaItems } = useSelector((state) => getConfig(state)).annotation ?? {};
 
   let maeAnnotation = annotation;
 
@@ -162,21 +196,33 @@ export default function POITemplate(
         currentShape: null,
       };
     }
-    // Group the saved body (one identifying + N describing items per language, see
-    // applyPoiBodyConversion) back into a per-locale map for the form to bind to.
+    // Group the saved body (one identifying + at most one describing TextualBody + at most one
+    // describing MediaItem per language, see applyPoiBodyConversion) back into a per-locale map
+    // for the form to bind to. A locale can, in principle, still carry more than one describing
+    // TextualBody item (legacy data saved before issue #333, or data written by another editor) -
+    // only the first one is kept, mirroring annotationConversion.ts's own `.find()` semantics
+    // server-side, so what's shown here always matches what a re-save would actually persist.
     const contentByLocale = {};
+    const localesWithDescription = new Set();
     maeAnnotation.body.forEach((body) => {
       const locale = body.language;
       if (!locale) return;
-      const content = contentByLocale[locale] ?? { descriptionItems: [], title: "" };
-      if (body.purpose === "identifying") {
-        content.title = body.value ?? "";
-      } else if (body.purpose === "describing") {
-        content.descriptionItems.push({
-          key: uuidv4(),
-          type: body.type,
-          value: body.type === DESCRIPTION_ITEM_TYPES.TEXT ? body.value : body.id
-        });
+      // No `mediaItem` key here either, for the same reason as EMPTY_LOCALE_CONTENT above -
+      // only actually seeing a MediaItem body item (below) should add it.
+      const content = contentByLocale[locale] ?? { description: '', title: '' };
+      if (body.purpose === 'identifying') {
+        content.title = body.value ?? '';
+      } else if (body.type === MEDIA_ITEM_BODY_TYPE) {
+        // body.id is null for an explicit "no media" clear (see applyPoiBodyConversion) -
+        // that must rehydrate back to `null`, not a `{ documentId: null }` object.
+        content.mediaItem = body.id ? { documentId: body.id, titleEn: body.title } : null;
+      } else if (
+        body.purpose === 'describing'
+        && body.type === TEXTUAL_BODY_TYPE
+        && !localesWithDescription.has(locale)
+      ) {
+        content.description = body.value ?? '';
+        localesWithDescription.add(locale);
       }
       contentByLocale[locale] = content;
     });
@@ -187,8 +233,9 @@ export default function POITemplate(
 
   const [annotationState, setAnnotationState] = useState(maeAnnotation);
   const [targetError, setTargetError] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [activeLocale, setActiveLocale] = useState(
-    Object.keys(annotationState.maeData.contentByLocale)[0] ?? contentLocales[0]?.code
+    Object.keys(annotationState.maeData.contentByLocale)[0] ?? contentLocales[0]?.code,
   );
 
   const rootRef = useRef(null);
@@ -202,9 +249,10 @@ export default function POITemplate(
   // root_repo#34's original fix, native focus/focusout recursion between MUI's and Radix's
   // focus traps). Setting `container` explicitly here reaches Popover directly regardless of
   // which theme slot resolves it.
-  const dialogContainer = () => rootRef.current?.closest("[role=\"dialog\"]") ?? document.body;
+  const dialogContainer = () => rootRef.current?.closest('[role="dialog"]') ?? document.body;
 
   const activeLocaleContent = getLocaleContent(annotationState.maeData.contentByLocale, activeLocale);
+  const activeLocaleIsRtl = isRtlLocale(activeLocale);
 
   /** Update a top-level maeData field * */
   const updateMaeData = (patch) => {
@@ -222,47 +270,14 @@ export default function POITemplate(
     updateMaeData({ target });
   };
 
-  /** Merge a patch into the active locale's title/descriptionItems * */
+  /** Merge a patch into the active locale's title/description * */
   const updateActiveLocaleContent = (patch) => {
     updateMaeData({
       contentByLocale: {
         ...annotationState.maeData.contentByLocale,
-        [activeLocale]: { ...activeLocaleContent, ...patch }
+        [activeLocale]: { ...activeLocaleContent, ...patch },
       },
     });
-  };
-
-  /** Add a new blank description item to the active locale * */
-  const addDescriptionItem = () => {
-    updateActiveLocaleContent({
-      descriptionItems: [
-        ...activeLocaleContent.descriptionItems,
-        { key: uuidv4(), type: DESCRIPTION_ITEM_TYPES.TEXT, value: '' },
-      ],
-    });
-  };
-
-  /** Replace one description item of the active locale * */
-  const updateDescriptionItem = (index, newItem) => {
-    const items = [...activeLocaleContent.descriptionItems];
-    items[index] = newItem;
-    updateActiveLocaleContent({ descriptionItems: items });
-  };
-
-  /** Remove one description item of the active locale * */
-  const removeDescriptionItem = (index) => {
-    updateActiveLocaleContent({
-      descriptionItems: activeLocaleContent.descriptionItems.filter((_item, i) => i !== index)
-    });
-  };
-
-  /** Move a description item up (-1) or down (+1) in display order, within the active locale * */
-  const moveDescriptionItem = (index, delta) => {
-    const items = [...activeLocaleContent.descriptionItems];
-    const targetIndex = index + delta;
-    if (targetIndex < 0 || targetIndex >= items.length) return;
-    [items[index], items[targetIndex]] = [items[targetIndex], items[index]];
-    updateActiveLocaleContent({ descriptionItems: items });
   };
 
   /** Save function * */
@@ -278,7 +293,17 @@ export default function POITemplate(
       playerReferences.getMediaTrueHeight(),
       1 / playerReferences.getScale(),
     );
-    saveAnnotation(annotationState);
+    setSaving(true);
+    try {
+      // Awaited (unlike a bare fire-and-forget call) so `saving` genuinely reflects the
+      // in-flight save instead of clearing itself before the network round-trip finishes.
+      await saveAnnotation(annotationState);
+    } finally {
+      // On success the form's own companion window closes anyway (unmounting this
+      // component), so this only visibly matters on failure - where it lets the editor
+      // retry instead of the button staying stuck disabled/spinning forever.
+      setSaving(false);
+    }
   };
 
   return (
@@ -289,11 +314,11 @@ export default function POITemplate(
       {contentLocales.length > 1 && (
         <Grid>
           <FormControl size="small" sx={{ minWidth: 160 }}>
-            <InputLabel id="poi-language-label">{t("poi_language")}</InputLabel>
+            <InputLabel id="poi-language-label">{t('poi_language')}</InputLabel>
             <Select
               labelId="poi-language-label"
-              label={t("poi_language")}
-              value={activeLocale ?? ""}
+              label={t('poi_language')}
+              value={activeLocale ?? ''}
               onChange={(event) => setActiveLocale(event.target.value)}
               MenuProps={{ container: dialogContainer }}
             >
@@ -311,87 +336,35 @@ export default function POITemplate(
           value={activeLocaleContent.title}
           variant="outlined"
           onChange={(event) => updateActiveLocaleContent({ title: event.target.value })}
+          slotProps={{
+            htmlInput: {
+              dir: activeLocaleIsRtl ? 'rtl' : 'ltr',
+              style: { textAlign: activeLocaleIsRtl ? 'right' : 'left' },
+            },
+          }}
         />
       </Grid>
+      {typeof searchMediaItems === 'function' && (
+        <Grid>
+          <MediaItemRelationField
+            dialogContainer={dialogContainer}
+            label={t('poi_media_item')}
+            onChange={(mediaItem) => updateActiveLocaleContent({ mediaItem })}
+            onSearch={searchMediaItems}
+            t={t}
+            value={activeLocaleContent.mediaItem}
+          />
+        </Grid>
+      )}
       <Grid>
         <Typography variant="formSectionTitle">{t('poi_description_section')}</Typography>
       </Grid>
-      {activeLocaleContent.descriptionItems.map((item, index) => (
-        <Grid key={item.key} container spacing={1} alignItems="center">
-          <Grid>
-            <FormControl size="small" sx={{ minWidth: 130 }}>
-              <InputLabel id={`poi-desc-type-label-${item.key}`}>
-                {t('poi_description_item_type')}
-              </InputLabel>
-              <Select
-                labelId={`poi-desc-type-label-${item.key}`}
-                label={t('poi_description_item_type')}
-                value={item.type}
-                onChange={(event) => updateDescriptionItem(
-                  index,
-                  { ...item, type: event.target.value, value: '' },
-                )}
-                MenuProps={{ container: dialogContainer }}
-              >
-                <MenuItem value={DESCRIPTION_ITEM_TYPES.TEXT}>
-                  {t('poi_description_item_type_text')}
-                </MenuItem>
-                <MenuItem value={DESCRIPTION_ITEM_TYPES.IMAGE}>
-                  {t('poi_description_item_type_image')}
-                </MenuItem>
-                <MenuItem value={DESCRIPTION_ITEM_TYPES.SOUND}>
-                  {t('poi_description_item_type_sound')}
-                </MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid size="grow">
-            <TextField
-              fullWidth
-              multiline={item.type === DESCRIPTION_ITEM_TYPES.TEXT}
-              label={item.type === DESCRIPTION_ITEM_TYPES.TEXT
-                ? t('poi_description_item_text_value')
-                : t('poi_description_item_url_value')}
-              value={item.value}
-              variant="outlined"
-              error={item.type !== DESCRIPTION_ITEM_TYPES.TEXT && !isValidUrl(item.value)}
-              helperText={item.type !== DESCRIPTION_ITEM_TYPES.TEXT && !isValidUrl(item.value)
-                ? t('invalid_url')
-                : undefined}
-              onChange={(event) => updateDescriptionItem(
-                index,
-                { ...item, value: event.target.value },
-              )}
-            />
-          </Grid>
-          <Grid>
-            <IconButton
-              aria-label={t('poi_move_description_item_up')}
-              disabled={index === 0}
-              onClick={() => moveDescriptionItem(index, -1)}
-            >
-              <ArrowUpwardIcon fontSize="small" />
-            </IconButton>
-            <IconButton
-              aria-label={t('poi_move_description_item_down')}
-              disabled={index === activeLocaleContent.descriptionItems.length - 1}
-              onClick={() => moveDescriptionItem(index, 1)}
-            >
-              <ArrowDownwardIcon fontSize="small" />
-            </IconButton>
-            <IconButton
-              aria-label={t('poi_remove_description_item')}
-              onClick={() => removeDescriptionItem(index)}
-            >
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-          </Grid>
-        </Grid>
-      ))}
       <Grid>
-        <Button startIcon={<AddIcon />} onClick={addDescriptionItem}>
-          {t('poi_add_description_item')}
-        </Button>
+        <RichTextField
+          onChange={(html) => updateActiveLocaleContent({ description: html })}
+          rtl={activeLocaleIsRtl}
+          value={activeLocaleContent.description}
+        />
       </Grid>
       <Grid>
         <TargetFormSection
@@ -412,6 +385,7 @@ export default function POITemplate(
         <AnnotationFormFooter
           closeFormCompanionWindow={closeFormCompanionWindow}
           saveAnnotation={saveFunction}
+          saving={saving}
           t={t}
           annotationState={annotationState}
         />

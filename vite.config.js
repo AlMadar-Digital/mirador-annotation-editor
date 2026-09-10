@@ -26,6 +26,15 @@ export default {
       name: 'MiradorAnnotationEditor',
     },
     rollupOptions: {
+      // Actually externalizes react/react-dom/etc on the Vite 7 (Rollup) toolchain this
+      // project currently uses - the esmExternalRequirePlugin below does NOT do this on
+      // Vite 7 despite an earlier attempt to rely on it alone (see git history on this
+      // file): that plugin only exists on Vite 8+ (Rolldown), so without this array,
+      // peerDependencies like react silently get bundled inline instead of externalized.
+      // That breaks any host app that also renders its own React tree around this
+      // package's components (e.g. the Strapi admin/Mirador setup this ships into),
+      // since two separate React instances can't share hook state.
+      external: externalIds,
       output: {
         assetFileNames: 'index.[ext]',
         exports: 'named', // Fixes the warning

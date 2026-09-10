@@ -1,10 +1,10 @@
 {
   "name": "dbf-mirador-annotation-editor",
-  "version": "1.4.2",
+  "version": "1.5.0-testing1",
   "description": "Mirador annotation editor plugin in a React component. Mirador 4 compatible",
   "repository": {
     "type": "git",
-    "url": "https://github.com/TETRAS-IIIF/mirador-annotation-editor/"
+    "url": "git+https://github.com/TETRAS-IIIF/mirador-annotation-editor.git"
   },
   "main": "dist/mirador-annotation-editor.cjs.js",
   "module": "dist/mirador-annotation-editor.es.js",
@@ -25,6 +25,7 @@
   ],
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/mirador-annotation-editor.es.js",
       "require": "./dist/mirador-annotation-editor.cjs.js"
     },
@@ -67,7 +68,6 @@
     "react-konva": "^18.2.10",
     "react-konva-to-svg": "^1.0.2",
     "react-quill": "npm:react-quill-new@3.8.3",
-    "react-redux": "^9.2.0",
     "react-refresh": "^0.14.0",
     "react-resize-observer": "^1.1.1",
     "react-select": "^5.10.1",
@@ -79,17 +79,20 @@
     "use-image": "^1.1.1"
   },
   "peerDependencies": {
+    "@ckeditor/ckeditor5-react": "~11.0.1",
     "@emotion/react": ">=11",
     "@emotion/styled": ">=11",
     "@mui/material": ">=5",
     "@mui/system": "^7.x",
+    "ckeditor5": "~47.6.1",
     "i18next": ">=23",
     "lodash": "^4.17.23",
     "dbf-mirador": "4.2.5",
     "prop-types": "^15.7.2",
     "react": "^18.3.1 || ^19.0.0",
     "react-dom": "^18.3.1 || ^19.0.0",
-    "react-i18next": ">=15"
+    "react-i18next": ">=15",
+    "react-redux": "^8.0.0 || ^9.0.0"
   },
   "devDependencies": {
     "@babel/cli": "^7.28.6",
@@ -98,6 +101,7 @@
     "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
     "@babel/preset-env": "^7.29.2",
     "@babel/preset-react": "^7.28.5",
+    "@ckeditor/ckeditor5-react": "~11.0.1",
     "@mui/icons-material": "7.3.10",
     "@mui/material": "7.3.10",
     "@mui/system": "7.3.10",
@@ -125,6 +129,7 @@
     "jest-canvas-mock": "^2.2.0",
     "jest-junit": "^15.0.0",
     "jest-localstorage-mock": "^2.4.2",
+    "ckeditor5": "~47.6.1",
     "dbf-mirador": "^4.2.4",
     "prop-types": "^15.7.2",
     "react": "^18.3.1",

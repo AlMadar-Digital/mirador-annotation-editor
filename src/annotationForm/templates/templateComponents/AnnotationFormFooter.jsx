@@ -1,5 +1,5 @@
 import {
-  Button, Divider, Grid, Tooltip,
+  Button, CircularProgress, Divider, Grid, Tooltip,
 } from '@mui/material';
 import PropTypes from 'prop-types';
 import React, { useEffect, useRef } from 'react';
@@ -12,15 +12,22 @@ function AnnotationFormFooter({
   annotationState,
   closeFormCompanionWindow,
   saveAnnotation,
+  saving,
   t,
 }) {
-  // Ref to not re-register on every render
+  // Refs to not re-register the listener on every render, while still reading each render's
+  // latest saveAnnotation/saving (the effect's own closure only ever sees their initial values).
   const saveRef = useRef(saveAnnotation);
   saveRef.current = saveAnnotation;
+  const savingRef = useRef(saving);
+  savingRef.current = saving;
 
   useEffect(() => {
-    /** When MAE_SAVE_EVENT triggers, validate form and save annotation */
-    const handleSave = () => saveRef.current();
+    /** When MAE_SAVE_EVENT triggers, validate form and save annotation - unless a save from
+     * a previous trigger (this event, or the Save button) is already in flight. */
+    const handleSave = () => {
+      if (!savingRef.current) saveRef.current();
+    };
     document.addEventListener(MAE_SAVE_EVENT, handleSave);
     return () => document.removeEventListener(MAE_SAVE_EVENT, handleSave);
   }, []);
@@ -46,6 +53,7 @@ function AnnotationFormFooter({
         <Tooltip title={<HotkeyTooltip label={t('cancel')} action="escape" />}>
           <Button
             sx={{ m: 1 }}
+            disabled={saving}
             onClick={closeFormCompanionWindow}
           >
             {t('cancel')}
@@ -57,6 +65,8 @@ function AnnotationFormFooter({
             variant="contained"
             color="primary"
             type="submit"
+            disabled={saving}
+            startIcon={saving ? <CircularProgress color="inherit" size={16} /> : undefined}
             onClick={saveAnnotation}
           >
             {t('save')}
@@ -72,7 +82,12 @@ AnnotationFormFooter.propTypes = {
   annotationState: PropTypes.object.isRequired,
   closeFormCompanionWindow: PropTypes.func.isRequired,
   saveAnnotation: PropTypes.func.isRequired,
+  saving: PropTypes.bool,
   t: PropTypes.func.isRequired,
+};
+
+AnnotationFormFooter.defaultProps = {
+  saving: false,
 };
 
 export default AnnotationFormFooter;

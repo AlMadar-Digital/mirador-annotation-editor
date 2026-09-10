@@ -1,7 +1,10 @@
 import React from 'react';
 import { I18nextProvider } from 'react-i18next';
+import userEvent from '@testing-library/user-event';
 import { i18n } from '../setupTest';
-import { fireEvent, render, screen } from './test-utils';
+import {
+  fireEvent, render, screen, waitFor,
+} from './test-utils';
 import POITemplate, {
   applyPoiBodyConversion,
   convertPoiAnnotationToBeSaved,
@@ -14,14 +17,33 @@ import { SHAPES_TOOL } from '../src/annotationForm/AnnotationFormOverlay/KonvaDr
 // placed POI marker (SHAPES_TOOL.POI, the dedicated click-to-place tool - see
 // docs/superpowers/specs/2026-09-01-poi-iiif-annotation-format-design.md in root_repo), so
 // getSvg is mocked the same way MultipleBodyTemplate.test.js mocks it, to keep these tests
-// independent of react-konva-to-svg's actual serialization.
+// independent of react-konva-to-svg's actual serialization. resizeKonvaStage is mocked too -
+// it looks up a real Konva stage by windowId (window.Konva.stages.find(...)), which only
+// exists when Konva itself has actually mounted a canvas, never true for these shallow renders.
 vi.mock('../src/annotationForm/AnnotationFormOverlay/KonvaDrawing/KonvaUtils', async () => {
   const actual = await vi.importActual('../src/annotationForm/AnnotationFormOverlay/KonvaDrawing/KonvaUtils');
   return {
     ...actual,
     getSvg: vi.fn().mockResolvedValue('<svg><circle cx="10" cy="20" r="5"/></svg>'),
+    resizeKonvaStage: vi.fn(),
   };
 });
+
+// RichTextField mounts a real CKEditor instance asynchronously (componentDidMount), which never
+// settles synchronously in happy-dom - swapped for a plain textarea test double that exposes the
+// same (value, onChange, rtl) contract, so these tests can assert on POITemplate's own
+// description-binding/RTL logic without depending on CKEditor actually mounting.
+vi.mock('../src/annotationForm/templates/templateComponents/RichTextField', () => ({
+  // eslint-disable-next-line react/prop-types -- test-only stand-in
+  RichTextField: ({ onChange, rtl, value }) => (
+    <textarea
+      data-rtl={rtl ? 'true' : 'false'}
+      data-testid="poi-description"
+      onChange={(event) => onChange(event.target.value)}
+      value={value}
+    />
+  ),
+}));
 
 /** A single POI marker, as placed by the dedicated POI tool (see PoiNode.jsx) */
 const poiShape = () => ({
@@ -87,7 +109,7 @@ const basePoiState = () => ({
   'dbf:kind': 'POI',
   maeData: {
     contentByLocale: {
-      en: { descriptionItems: [], title: "Dome of the Rock" }
+      en: { description: '', title: 'Dome of the Rock' },
     },
     target: {
       drawingState: { shapes: [poiShape()] },
@@ -127,50 +149,96 @@ describe('isValidPointTarget', () => {
 });
 
 describe('applyPoiBodyConversion', () => {
-  it("builds body with the title as a language-tagged identifying TextualBody", () => {
+  it('builds body with the title as a language-tagged identifying TextualBody', () => {
     const state = basePoiState();
 
     const result = applyPoiBodyConversion(state);
 
     expect(result.body[0]).toEqual({
-      language: "en",
+      language: 'en',
       purpose: 'identifying',
       type: 'TextualBody',
       value: 'Dome of the Rock',
     });
   });
 
-  it("appends ordered, language-tagged description items, skipping empty ones", () => {
+  it('appends a language-tagged describing TextualBody when the description is non-empty', () => {
     const state = basePoiState();
-    state.maeData.contentByLocale.en.descriptionItems = [
-      { key: '1', type: 'TextualBody', value: 'Built in 691 CE' },
-      { key: '2', type: 'Image', value: 'https://example.org/dome.jpg' },
-      { key: '3', type: 'Sound', value: 'https://example.org/dome.mp3' },
-      { key: '4', type: 'TextualBody', value: '' },
-    ];
+    state.maeData.contentByLocale.en.description = '<p>Built in 691 CE</p>';
 
     const result = applyPoiBodyConversion(state);
 
     expect(result.body.slice(1)).toEqual([
-      { language: "en", purpose: "describing", type: "TextualBody", value: "Built in 691 CE" },
-      { id: "https://example.org/dome.jpg", language: "en", purpose: "describing", type: "Image" },
-      { id: "https://example.org/dome.mp3", language: "en", purpose: "describing", type: "Sound" }
+      {
+        language: 'en', purpose: 'describing', type: 'TextualBody', value: '<p>Built in 691 CE</p>',
+      },
     ]);
   });
 
-  it("builds one identifying + describing group per locale actually present", () => {
+  it('omits the describing body entirely when the description is empty', () => {
+    const state = basePoiState();
+    state.maeData.contentByLocale.en.description = '<p><br></p>';
+
+    const result = applyPoiBodyConversion(state);
+
+    expect(result.body.some((item) => item.purpose === 'describing' && item.type === 'TextualBody')).toBe(false);
+  });
+
+  it('appends a MediaItem describing body when a media item is attached, carrying its title', () => {
+    const state = basePoiState();
+    state.maeData.contentByLocale.en.mediaItem = { documentId: 'media-1', titleEn: 'Dome of the Rock tour' };
+
+    const result = applyPoiBodyConversion(state);
+
+    expect(result.body.slice(1)).toEqual([
+      {
+        id: 'media-1', language: 'en', purpose: 'describing', title: 'Dome of the Rock tour', type: 'MediaItem',
+      },
+    ]);
+  });
+
+  it('omits the MediaItem body entirely for a locale the media field was never touched for', () => {
+    const result = applyPoiBodyConversion(basePoiState());
+
+    expect(result.body.some((item) => item.type === 'MediaItem')).toBe(false);
+  });
+
+  it('emits an explicit null-id MediaItem body when a media item was attached then cleared', () => {
+    const state = basePoiState();
+    // A locale the editor's media field was touched for, but has no media attached (distinct
+    // from never having the `mediaItem` key at all - see applyPoiBodyConversion's own-property
+    // check): must still emit an explicit body item so the server disconnects mediaEn/mediaAr,
+    // instead of silently leaving a previously-attached one untouched.
+    state.maeData.contentByLocale.en.mediaItem = null;
+
+    const result = applyPoiBodyConversion(state);
+
+    expect(result.body.slice(1)).toEqual([
+      {
+        id: null, language: 'en', purpose: 'describing', title: null, type: 'MediaItem',
+      },
+    ]);
+  });
+
+  it('builds one identifying + describing group per locale actually present', () => {
     const state = basePoiState();
     state.maeData.contentByLocale.ar = {
-      descriptionItems: [{ key: "1", type: "TextualBody", value: "بني عام 691" }],
-      title: "قبة الصخرة"
+      description: '<p>بني عام 691</p>',
+      title: 'قبة الصخرة',
     };
 
     const result = applyPoiBodyConversion(state);
 
     expect(result.body).toEqual([
-      { language: "en", purpose: "identifying", type: "TextualBody", value: "Dome of the Rock" },
-      { language: "ar", purpose: "identifying", type: "TextualBody", value: "قبة الصخرة" },
-      { language: "ar", purpose: "describing", type: "TextualBody", value: "بني عام 691" }
+      {
+        language: 'en', purpose: 'identifying', type: 'TextualBody', value: 'Dome of the Rock',
+      },
+      {
+        language: 'ar', purpose: 'identifying', type: 'TextualBody', value: 'قبة الصخرة',
+      },
+      {
+        language: 'ar', purpose: 'describing', type: 'TextualBody', value: '<p>بني عام 691</p>',
+      },
     ]);
   });
 
@@ -218,10 +286,15 @@ describe('POITemplate (render)', () => {
   /** Identity translation stub, matching exampleExternalTemplate.test.js's convention */
   const mockT = (key) => key;
 
-  const CONTENT_LOCALES = [{ code: "en", name: "English" }, { code: "ar", name: "Arabic" }];
+  const CONTENT_LOCALES = [{ code: 'en', name: 'English' }, { code: 'ar', name: 'Arabic' }];
 
   /** Render POITemplate wrapped the same way exampleExternalTemplate.test.js does */
-  const renderPoiTemplate = (annotation = {}, saveAnnotation = vi.fn(), contentLocales = []) => render(
+  const renderPoiTemplate = (
+    annotation = {},
+    saveAnnotation = vi.fn(),
+    contentLocales = [],
+    searchMediaItems = undefined,
+  ) => render(
     <I18nextProvider i18n={i18n}>
       <POITemplate
         annotation={annotation}
@@ -232,7 +305,7 @@ describe('POITemplate (render)', () => {
         windowId="window1"
       />
     </I18nextProvider>,
-    { preloadedState: { config: { annotation: { contentLocales } } } }
+    { preloadedState: { config: { annotation: { contentLocales, searchMediaItems } } } },
   );
 
   it('does not save and shows an error when the target is not a single point', () => {
@@ -245,23 +318,25 @@ describe('POITemplate (render)', () => {
     expect(screen.getByText('poi_target_must_be_point')).toBeInTheDocument();
   });
 
-  it('adds and removes a description item', () => {
+  it('binds the description field to the active locale and updates it on change', () => {
     renderPoiTemplate();
 
-    expect(screen.queryAllByLabelText('poi_remove_description_item')).toHaveLength(0);
+    expect(screen.getByTestId('poi-description')).toHaveValue('');
 
-    fireEvent.click(screen.getByRole('button', { name: 'poi_add_description_item' }));
-    expect(screen.getAllByLabelText('poi_remove_description_item')).toHaveLength(1);
+    fireEvent.change(screen.getByTestId('poi-description'), { target: { value: '<p>Built in 691 CE</p>' } });
 
-    fireEvent.click(screen.getByLabelText('poi_remove_description_item'));
-    expect(screen.queryAllByLabelText('poi_remove_description_item')).toHaveLength(0);
+    expect(screen.getByTestId('poi-description')).toHaveValue('<p>Built in 691 CE</p>');
   });
 
-  it('rehydrates title and description items from an existing annotation body', () => {
+  it('rehydrates the title and description from an existing annotation body', () => {
     renderPoiTemplate({
       body: [
-        { language: "en", purpose: "identifying", type: "TextualBody", value: "Dome of the Rock" },
-        { language: "en", purpose: "describing", type: "TextualBody", value: "Built in 691 CE" }
+        {
+          language: 'en', purpose: 'identifying', type: 'TextualBody', value: 'Dome of the Rock',
+        },
+        {
+          language: 'en', purpose: 'describing', type: 'TextualBody', value: '<p>Built in 691 CE</p>',
+        },
       ],
       'dbf:kind': 'POI',
       id: 'canvas1/annotation/1',
@@ -277,40 +352,191 @@ describe('POITemplate (render)', () => {
     });
 
     expect(screen.getByDisplayValue('Dome of the Rock')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('Built in 691 CE')).toBeInTheDocument();
+    expect(screen.getByTestId('poi-description')).toHaveValue('<p>Built in 691 CE</p>');
   });
 
-  it("hides the language selector when fewer than two content locales are configured", () => {
-    renderPoiTemplate({}, vi.fn(), [{ code: "en", name: "English" }]);
+  it('only rehydrates the first describing TextualBody per locale, matching annotationConversion.ts server-side', () => {
+    renderPoiTemplate({
+      body: [
+        {
+          language: 'en', purpose: 'identifying', type: 'TextualBody', value: 'Dome of the Rock',
+        },
+        {
+          language: 'en', purpose: 'describing', type: 'TextualBody', value: '<p>First</p>',
+        },
+        {
+          language: 'en', purpose: 'describing', type: 'TextualBody', value: '<p>Second</p>',
+        },
+      ],
+      'dbf:kind': 'POI',
+      id: 'canvas1/annotation/1',
+      maeData: {
+        target: { drawingState: JSON.stringify({ shapes: [poiShape()] }) },
+        templateType: 'poi',
+      },
+      motivation: 'identifying',
+      target: {
+        selector: [{ type: 'SvgSelector', value: '<svg><circle cx="10" cy="20" r="5"/></svg>' }],
+        source: 'canvas1',
+      },
+    });
 
-    expect(screen.queryByText("poi_language")).not.toBeInTheDocument();
+    expect(screen.getByTestId('poi-description')).toHaveValue('<p>First</p>');
+  });
+
+  it('hides the language selector when fewer than two content locales are configured', () => {
+    renderPoiTemplate({}, vi.fn(), [{ code: 'en', name: 'English' }]);
+
+    expect(screen.queryByText('poi_language')).not.toBeInTheDocument();
   });
 
   it("switching the language selector shows that locale's own title, independent of the others", () => {
     renderPoiTemplate({
       body: [
-        { language: "en", purpose: "identifying", type: "TextualBody", value: "Dome of the Rock" },
-        { language: "ar", purpose: "identifying", type: "TextualBody", value: "قبة الصخرة" }
+        {
+          language: 'en', purpose: 'identifying', type: 'TextualBody', value: 'Dome of the Rock',
+        },
+        {
+          language: 'ar', purpose: 'identifying', type: 'TextualBody', value: 'قبة الصخرة',
+        },
       ],
-      "dbf:kind": "POI",
-      id: "canvas1/annotation/1",
+      'dbf:kind': 'POI',
+      id: 'canvas1/annotation/1',
       maeData: {
         target: { drawingState: JSON.stringify({ shapes: [poiShape()] }) },
-        templateType: "poi"
+        templateType: 'poi',
       },
-      motivation: "identifying",
+      motivation: 'identifying',
       target: {
-        selector: [{ type: "SvgSelector", value: "<svg><circle cx=\"10\" cy=\"20\" r=\"5\"/></svg>" }],
-        source: "canvas1"
-      }
+        selector: [{ type: 'SvgSelector', value: '<svg><circle cx="10" cy="20" r="5"/></svg>' }],
+        source: 'canvas1',
+      },
     }, vi.fn(), CONTENT_LOCALES);
 
-    expect(screen.getByDisplayValue("Dome of the Rock")).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Dome of the Rock')).toBeInTheDocument();
 
-    fireEvent.mouseDown(screen.getByLabelText("poi_language"));
-    fireEvent.click(screen.getByRole("option", { name: "Arabic" }));
+    fireEvent.mouseDown(screen.getByLabelText('poi_language'));
+    fireEvent.click(screen.getByRole('option', { name: 'Arabic' }));
 
-    expect(screen.getByDisplayValue("قبة الصخرة")).toBeInTheDocument();
-    expect(screen.queryByDisplayValue("Dome of the Rock")).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue('قبة الصخرة')).toBeInTheDocument();
+    expect(screen.queryByDisplayValue('Dome of the Rock')).not.toBeInTheDocument();
+  });
+
+  it('switches the title field and description field to RTL for an Arabic active locale', () => {
+    renderPoiTemplate({}, vi.fn(), CONTENT_LOCALES);
+
+    expect(screen.getByLabelText('poi_title')).toHaveAttribute('dir', 'ltr');
+    expect(screen.getByTestId('poi-description')).toHaveAttribute('data-rtl', 'false');
+
+    fireEvent.mouseDown(screen.getByLabelText('poi_language'));
+    fireEvent.click(screen.getByRole('option', { name: 'Arabic' }));
+
+    expect(screen.getByLabelText('poi_title')).toHaveAttribute('dir', 'rtl');
+    expect(screen.getByTestId('poi-description')).toHaveAttribute('data-rtl', 'true');
+  });
+
+  it('does not render a media item field when no searchMediaItems capability is configured', () => {
+    renderPoiTemplate();
+
+    expect(screen.queryByText('poi_media_item')).not.toBeInTheDocument();
+  });
+
+  it('lets the editor search and attach a media item, then reflects the pick', async () => {
+    const searchMediaItems = vi.fn().mockResolvedValue([
+      {
+        documentId: 'media-1', mediaType: 'audio', purpose: 'audio-tour', titleEn: 'Dome of the Rock tour',
+      },
+    ]);
+    renderPoiTemplate({}, vi.fn(), [], searchMediaItems);
+
+    const mediaField = screen.getByLabelText('poi_media_item');
+    await userEvent.type(mediaField, 'Dome');
+
+    await waitFor(() => expect(searchMediaItems).toHaveBeenCalledWith('Dome'));
+    fireEvent.click(await screen.findByRole('option', { name: 'Dome of the Rock tour' }));
+
+    expect(screen.getByLabelText('poi_media_item')).toHaveValue('Dome of the Rock tour');
+  });
+
+  it('rehydrates an already-attached media item from the saved annotation body', () => {
+    renderPoiTemplate({
+      body: [
+        {
+          language: 'en', purpose: 'identifying', type: 'TextualBody', value: 'Dome of the Rock',
+        },
+        {
+          id: 'media-1', language: 'en', purpose: 'describing', title: 'Dome of the Rock tour', type: 'MediaItem',
+        },
+      ],
+      'dbf:kind': 'POI',
+      id: 'canvas1/annotation/1',
+      maeData: {
+        target: { drawingState: JSON.stringify({ shapes: [poiShape()] }) },
+        templateType: 'poi',
+      },
+      motivation: 'identifying',
+      target: {
+        selector: [{ type: 'SvgSelector', value: '<svg><circle cx="10" cy="20" r="5"/></svg>' }],
+        source: 'canvas1',
+      },
+    }, vi.fn(), [], vi.fn().mockResolvedValue([]));
+
+    expect(screen.getByLabelText('poi_media_item')).toHaveValue('Dome of the Rock tour');
+  });
+
+  it('rehydrates an explicitly-cleared media item (null id) as an empty field, without crashing', () => {
+    renderPoiTemplate({
+      body: [
+        {
+          language: 'en', purpose: 'identifying', type: 'TextualBody', value: 'Dome of the Rock',
+        },
+        {
+          id: null, language: 'en', purpose: 'describing', title: null, type: 'MediaItem',
+        },
+      ],
+      'dbf:kind': 'POI',
+      id: 'canvas1/annotation/1',
+      maeData: {
+        target: { drawingState: JSON.stringify({ shapes: [poiShape()] }) },
+        templateType: 'poi',
+      },
+      motivation: 'identifying',
+      target: {
+        selector: [{ type: 'SvgSelector', value: '<svg><circle cx="10" cy="20" r="5"/></svg>' }],
+        source: 'canvas1',
+      },
+    }, vi.fn(), [], vi.fn().mockResolvedValue([]));
+
+    expect(screen.getByLabelText('poi_media_item')).toHaveValue('');
+  });
+
+  it('shows a spinner and disables Save/Cancel while the save is in flight, then re-enables them', async () => {
+    let resolveSave;
+    const saveAnnotation = vi.fn(() => new Promise((resolve) => { resolveSave = resolve; }));
+    renderPoiTemplate({
+      body: [],
+      'dbf:kind': 'POI',
+      id: 'canvas1/annotation/1',
+      maeData: {
+        target: { drawingState: JSON.stringify({ shapes: [poiShape()] }) },
+        templateType: 'poi',
+      },
+      motivation: 'identifying',
+      target: {
+        selector: [{ type: 'SvgSelector', value: '<svg><circle cx="10" cy="20" r="5"/></svg>' }],
+        source: 'canvas1',
+      },
+    }, saveAnnotation);
+
+    fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+    expect(saveAnnotation).toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'save' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'cancel' })).toBeDisabled();
+    expect(screen.getByRole('progressbar')).toBeInTheDocument();
+
+    resolveSave();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'save' })).not.toBeDisabled());
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
   });
 });
