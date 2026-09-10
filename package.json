@@ -1,10 +1,10 @@
 {
   "name": "dbf-mirador-annotation-editor",
-  "version": "1.4.2",
+  "version": "1.5.0-testing1",
   "description": "Mirador annotation editor plugin in a React component. Mirador 4 compatible",
   "repository": {
     "type": "git",
-    "url": "https://github.com/TETRAS-IIIF/mirador-annotation-editor/"
+    "url": "git+https://github.com/TETRAS-IIIF/mirador-annotation-editor.git"
   },
   "main": "dist/mirador-annotation-editor.cjs.js",
   "module": "dist/mirador-annotation-editor.es.js",
