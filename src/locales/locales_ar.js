@@ -62,6 +62,7 @@ export const ar = {
   poi: "نقطة اهتمام",
   poi_click_to_place: "انقر على الصورة لوضع علامة نقطة الاهتمام. انقر مرة أخرى لتحريكها.",
   poi_description: "نقطة اهتمام لها موقع ووصف وروابط اختيارية",
+  poi_description_placeholder: "صف نقطة الاهتمام هذه…",
   poi_description_section: "الوصف",
   poi_language: "اللغة",
   poi_media_item: "عنصر الوسائط",

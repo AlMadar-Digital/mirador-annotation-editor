@@ -215,7 +215,16 @@ export default function POITemplate(
       } else if (body.type === MEDIA_ITEM_BODY_TYPE) {
         // body.id is null for an explicit "no media" clear (see applyPoiBodyConversion) -
         // that must rehydrate back to `null`, not a `{ documentId: null }` object.
-        content.mediaItem = body.id ? { documentId: body.id, titleEn: body.title } : null;
+        // mediaType/thumbnailUrl (issue #333's preview) are recomputed fresh by the server
+        // on every load (annotationConversion.ts's mediaItemThumbnailUrl) - never something
+        // this editor itself wrote, so they're read here but never round-tripped back out
+        // through applyPoiBodyConversion.
+        content.mediaItem = body.id ? {
+          documentId: body.id,
+          mediaType: body.mediaType ?? null,
+          thumbnailUrl: body.thumbnailUrl ?? null,
+          titleEn: body.title,
+        } : null;
       } else if (
         body.purpose === 'describing'
         && body.type === TEXTUAL_BODY_TYPE
@@ -362,6 +371,7 @@ export default function POITemplate(
       <Grid>
         <RichTextField
           onChange={(html) => updateActiveLocaleContent({ description: html })}
+          placeholder={t('poi_description_placeholder')}
           rtl={activeLocaleIsRtl}
           value={activeLocaleContent.description}
         />
