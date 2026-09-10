@@ -484,6 +484,70 @@ describe('POITemplate (render)', () => {
     expect(screen.getByLabelText('poi_media_item')).toHaveValue('Dome of the Rock tour');
   });
 
+  it('shows a thumbnail preview for a rehydrated media item that has one (issue #333)', () => {
+    renderPoiTemplate({
+      body: [
+        {
+          language: 'en', purpose: 'identifying', type: 'TextualBody', value: 'Dome of the Rock',
+        },
+        {
+          id: 'media-1',
+          language: 'en',
+          mediaType: 'youtube-video',
+          purpose: 'describing',
+          thumbnailUrl: 'https://img.youtube.com/vi/abc123/mqdefault.jpg',
+          title: 'Dome of the Rock tour',
+          type: 'MediaItem',
+        },
+      ],
+      'dbf:kind': 'POI',
+      id: 'canvas1/annotation/1',
+      maeData: {
+        target: { drawingState: JSON.stringify({ shapes: [poiShape()] }) },
+        templateType: 'poi',
+      },
+      motivation: 'identifying',
+      target: {
+        selector: [{ type: 'SvgSelector', value: '<svg><circle cx="10" cy="20" r="5"/></svg>' }],
+        source: 'canvas1',
+      },
+    }, vi.fn(), [], vi.fn().mockResolvedValue([]));
+
+    expect(screen.getByTestId('media-item-thumbnail')).toHaveAttribute('src', 'https://img.youtube.com/vi/abc123/mqdefault.jpg');
+  });
+
+  it('falls back to a mediaType icon for a rehydrated media item with no thumbnail', () => {
+    renderPoiTemplate({
+      body: [
+        {
+          language: 'en', purpose: 'identifying', type: 'TextualBody', value: 'Dome of the Rock',
+        },
+        {
+          id: 'media-1',
+          language: 'en',
+          mediaType: 'audio',
+          purpose: 'describing',
+          thumbnailUrl: null,
+          title: 'Dome of the Rock tour',
+          type: 'MediaItem',
+        },
+      ],
+      'dbf:kind': 'POI',
+      id: 'canvas1/annotation/1',
+      maeData: {
+        target: { drawingState: JSON.stringify({ shapes: [poiShape()] }) },
+        templateType: 'poi',
+      },
+      motivation: 'identifying',
+      target: {
+        selector: [{ type: 'SvgSelector', value: '<svg><circle cx="10" cy="20" r="5"/></svg>' }],
+        source: 'canvas1',
+      },
+    }, vi.fn(), [], vi.fn().mockResolvedValue([]));
+
+    expect(screen.getByTestId('AudiotrackIcon')).toBeInTheDocument();
+  });
+
   it('rehydrates an explicitly-cleared media item (null id) as an empty field, without crashing', () => {
     renderPoiTemplate({
       body: [
