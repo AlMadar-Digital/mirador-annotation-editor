@@ -2,11 +2,13 @@ import TextFieldsIcon from '@mui/icons-material/TextFields';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import DataObjectIcon from '@mui/icons-material/DataObject';
 import RouteIcon from '@mui/icons-material/Route';
+import MapIcon from '@mui/icons-material/Map';
 import React from 'react';
 import PoiIcon from '../../icons/PoiIcon';
 import IIIFTemplate, { convertIIIFAnnotationToBeSaved } from './builtin/IIIFTemplate';
 import JourneyTemplate, { convertJourneyAnnotationToBeSaved } from './builtin/JourneyTemplate';
 import MultipleBodyTemplate, { convertMultipleBodyAnnotationToBeSaved } from './builtin/MultipleBodyTemplate';
+import NestedMapTemplate, { convertNestedMapAnnotationToBeSaved } from './builtin/NestedMapTemplate';
 import POITemplate, { convertPoiAnnotationToBeSaved } from './builtin/POITemplate';
 import TaggingTemplate, { convertTaggingAnnotationToBeSaved } from './builtin/TaggingTemplate';
 import TextCommentTemplate, { convertTextCommentAnnotationToBeSaved } from './builtin/TextCommentTemplate';
@@ -80,6 +82,16 @@ export const TEMPLATE_REGISTRY = (t, externalTemplates = []) => {
       id: TEMPLATE.POI_TYPE,
       isCompatibleWithMediaType: imageOnly,
       label: t('poi'),
+      selectable: true,
+    },
+    {
+      Component: NestedMapTemplate,
+      convertToAnnotation: convertNestedMapAnnotationToBeSaved,
+      description: t('nested_map_description'),
+      icon: <MapIcon fontSize="small" />,
+      id: TEMPLATE.NESTED_MAP_TYPE,
+      isCompatibleWithMediaType: imageOnly,
+      label: t('nested_map'),
       selectable: true,
     },
     {

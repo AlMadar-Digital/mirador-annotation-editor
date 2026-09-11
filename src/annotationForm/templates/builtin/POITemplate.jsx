@@ -27,7 +27,7 @@ const { AnnotationFormFooter, TargetFormSection } = templateKit;
  * Strapi field this feeds - annotationConversion.ts (server-side) already only ever reads the
  * first describing TextualBody per language, so the richer list was silently truncated there
  * regardless. */
-const TEXTUAL_BODY_TYPE = 'TextualBody';
+export const TEXTUAL_BODY_TYPE = 'TextualBody';
 
 /** The body-item type of a POI's per-language Media Item relation (mediaEn/mediaAr) - kept
  * distinct from TEXTUAL_BODY_TYPE since it's a single field per language holding a Strapi Media
@@ -40,7 +40,7 @@ export const MEDIA_ITEM_BODY_TYPE = 'MediaItem';
  * fields in Strapi's own Content Manager form, applied here per-activeLocale instead, since this
  * form shows one language's fields at a time rather than an En/Ar pair side by side (see the
  * language Select below). */
-const isRtlLocale = (localeCode) => (
+export const isRtlLocale = (localeCode) => (
   typeof localeCode === 'string' && localeCode.toLowerCase().startsWith('ar')
 );
 
@@ -51,7 +51,7 @@ const isRtlLocale = (localeCode) => (
 // disconnected server-side. Baking `mediaItem: null` into this fallback would defeat that: any
 // edit to title/description alone (which merges this fallback in via updateActiveLocaleContent)
 // would then look identical to an explicit "no media" clear.
-const EMPTY_LOCALE_CONTENT = { description: '', title: '' };
+export const EMPTY_LOCALE_CONTENT = { description: '', title: '' };
 
 /** Read one locale's title/description/mediaItem out of maeData.contentByLocale, defaulting to
  * empty content for a locale the editor hasn't touched yet (never written into state - see
@@ -61,7 +61,49 @@ const EMPTY_LOCALE_CONTENT = { description: '', title: '' };
  * @param {string} locale
  * @returns {{ title: string, description: string, mediaItem: (object|null|undefined) }}
  */
-const getLocaleContent = (contentByLocale, locale) => contentByLocale[locale] ?? EMPTY_LOCALE_CONTENT;
+export const getLocaleContent = (contentByLocale, locale) => contentByLocale[locale] ?? EMPTY_LOCALE_CONTENT;
+
+/**
+ * Groups a saved annotation body (one identifying + at most one describing TextualBody + at
+ * most one describing MediaItem per language - see applyPoiBodyConversion) back into a
+ * per-locale content map for a form to bind to. Shared by POITemplate and NestedMapTemplate -
+ * both save/rehydrate the exact same title/description/media shape (issue #350: a nested-map
+ * point "shares the same information as POI").
+ * @param {object[]} body
+ * @returns {object} contentByLocale
+ */
+export const parseContentByLocale = (body) => {
+  const contentByLocale = {};
+  const localesWithDescription = new Set();
+  body.forEach((item) => {
+    const locale = item.language;
+    if (!locale) return;
+    // No `mediaItem` key here either, for the same reason as EMPTY_LOCALE_CONTENT above -
+    // only actually seeing a MediaItem body item (below) should add it.
+    const content = contentByLocale[locale] ?? { description: '', title: '' };
+    if (item.purpose === 'identifying') {
+      content.title = item.value ?? '';
+    } else if (item.type === MEDIA_ITEM_BODY_TYPE) {
+      // item.id is null for an explicit "no media" clear (see applyPoiBodyConversion) -
+      // that must rehydrate back to `null`, not a `{ documentId: null }` object.
+      content.mediaItem = item.id ? {
+        documentId: item.id,
+        mediaType: item.mediaType ?? null,
+        thumbnailUrl: item.thumbnailUrl ?? null,
+        titleEn: item.title,
+      } : null;
+    } else if (
+      item.purpose === 'describing'
+      && item.type === TEXTUAL_BODY_TYPE
+      && !localesWithDescription.has(locale)
+    ) {
+      content.description = item.value ?? '';
+      localesWithDescription.add(locale);
+    }
+    contentByLocale[locale] = content;
+  });
+  return contentByLocale;
+};
 
 /**
  * A POI's spatial target must be exactly one placed POI marker (SHAPES_TOOL.POI, tetras-dbf/
@@ -196,46 +238,10 @@ export default function POITemplate(
         currentShape: null,
       };
     }
-    // Group the saved body (one identifying + at most one describing TextualBody + at most one
-    // describing MediaItem per language, see applyPoiBodyConversion) back into a per-locale map
-    // for the form to bind to. A locale can, in principle, still carry more than one describing
-    // TextualBody item (legacy data saved before issue #333, or data written by another editor) -
-    // only the first one is kept, mirroring annotationConversion.ts's own `.find()` semantics
-    // server-side, so what's shown here always matches what a re-save would actually persist.
-    const contentByLocale = {};
-    const localesWithDescription = new Set();
-    maeAnnotation.body.forEach((body) => {
-      const locale = body.language;
-      if (!locale) return;
-      // No `mediaItem` key here either, for the same reason as EMPTY_LOCALE_CONTENT above -
-      // only actually seeing a MediaItem body item (below) should add it.
-      const content = contentByLocale[locale] ?? { description: '', title: '' };
-      if (body.purpose === 'identifying') {
-        content.title = body.value ?? '';
-      } else if (body.type === MEDIA_ITEM_BODY_TYPE) {
-        // body.id is null for an explicit "no media" clear (see applyPoiBodyConversion) -
-        // that must rehydrate back to `null`, not a `{ documentId: null }` object.
-        // mediaType/thumbnailUrl (issue #333's preview) are recomputed fresh by the server
-        // on every load (annotationConversion.ts's mediaItemThumbnailUrl) - never something
-        // this editor itself wrote, so they're read here but never round-tripped back out
-        // through applyPoiBodyConversion.
-        content.mediaItem = body.id ? {
-          documentId: body.id,
-          mediaType: body.mediaType ?? null,
-          thumbnailUrl: body.thumbnailUrl ?? null,
-          titleEn: body.title,
-        } : null;
-      } else if (
-        body.purpose === 'describing'
-        && body.type === TEXTUAL_BODY_TYPE
-        && !localesWithDescription.has(locale)
-      ) {
-        content.description = body.value ?? '';
-        localesWithDescription.add(locale);
-      }
-      contentByLocale[locale] = content;
-    });
-    maeAnnotation.maeData.contentByLocale = contentByLocale;
+    // Group the saved body back into a per-locale map for the form to bind to (see
+    // parseContentByLocale's own doc for the "first describing item per locale wins" rule this
+    // mirrors from annotationConversion.ts server-side).
+    maeAnnotation.maeData.contentByLocale = parseContentByLocale(maeAnnotation.body);
     // dbf:journey / dbf:linkedMap (if present) are intentionally left untouched on
     // maeAnnotation itself - not read into maeData, since there is no UI here to edit them.
   }

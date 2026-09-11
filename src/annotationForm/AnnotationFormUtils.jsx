@@ -7,6 +7,7 @@ export const TEMPLATE = {
   IIIF_TYPE: 'iiif',
   JOURNEY_TYPE: 'journey',
   MULTIPLE_BODY_TYPE: 'multiple_body',
+  NESTED_MAP_TYPE: 'nestedMap',
   POI_TYPE: 'poi',
   TAGGING_TYPE: 'tagging',
   TEXT_TYPE: 'text',

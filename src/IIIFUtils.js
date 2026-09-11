@@ -144,6 +144,7 @@ export const getIIIFTargetFromMaeData = (
     case TEMPLATE.TEXT_TYPE:
     case TEMPLATE.MULTIPLE_BODY_TYPE:
     case TEMPLATE.POI_TYPE:
+    case TEMPLATE.NESTED_MAP_TYPE:
       // In some case the target can be simplified in a string
       if (isSimpleTarget(maeTarget.drawingState.shapes)) {
         console.info('Simple target detected');
@@ -199,8 +200,13 @@ const convertIIIFBodyToMae = (anno) => {
   // from MultipleBodyTemplate's shape - discarding the POI's title/description structure.
   // POITemplate derives title/descriptionItems straight from `anno.body` itself (not from
   // maeData.textBody), so textBody is intentionally left empty here.
+  //
+  // A "Nested Map" point (issue #350) is saved as the exact same dbf:kind: 'POI' row (it shares
+  // POI's fields and is a plain `poi` Strapi document) - the only thing that distinguishes it is
+  // carrying a non-null dbf:linkedMap, so that's what routes it back to NestedMapTemplate instead
+  // of POITemplate when re-opened for editing.
   if (anno['dbf:kind'] === 'POI') {
-    templateType = TEMPLATE.POI_TYPE;
+    templateType = anno['dbf:linkedMap'] ? TEMPLATE.NESTED_MAP_TYPE : TEMPLATE.POI_TYPE;
   } else if (anno['dbf:kind'] === 'Journey') {
     // Same reasoning as the POI branch above: a journey has no spatial target and derives its
     // title/description straight from `anno.body` itself (see JourneyTemplate.jsx), so textBody
@@ -469,6 +475,7 @@ export const getDefaultValue = () => `${new Date().toLocaleString()}`;
 /** templateTypes with a Konva-drawn spatial target, i.e. every template except IIIF_TYPE */
 const SPATIAL_TARGET_TEMPLATE_TYPES = [
   TEMPLATE.TAGGING_TYPE, TEMPLATE.TEXT_TYPE, TEMPLATE.MULTIPLE_BODY_TYPE, TEMPLATE.POI_TYPE,
+  TEMPLATE.NESTED_MAP_TYPE,
 ];
 
 /**
