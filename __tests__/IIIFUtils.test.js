@@ -343,6 +343,17 @@ describe('convertIIIFAnnoToMaeData', () => {
     expect(convertIIIFAnnoToMaeData(anno).maeData.templateType).toBe(TEMPLATE.POI_TYPE);
   });
 
+  it('derives NESTED_MAP_TYPE from dbf:kind: "POI" carrying a non-null dbf:linkedMap (issue #350): a nested-map point is saved as a plain POI row, so dbf:linkedMap is the only thing that routes it back to NestedMapTemplate instead of POITemplate', () => {
+    const anno = {
+      'dbf:kind': 'POI',
+      'dbf:linkedMap': { id: 'map-7', titleEn: 'Old City' },
+      motivation: 'identifying',
+      target: { selector: { type: 'FragmentSelector', value: 'xywh=1,2,3,4' } },
+    };
+
+    expect(convertIIIFAnnoToMaeData(anno).maeData.templateType).toBe(TEMPLATE.NESTED_MAP_TYPE);
+  });
+
   it('derives MULTIPLE_BODY_TYPE from `bodyValue`, forcing purpose to "describing"', () => {
     const anno = { bodyValue: 'legacy comment', target: { selector: { type: 'FragmentSelector', value: 'xywh=1,2,3,4' } } };
 
