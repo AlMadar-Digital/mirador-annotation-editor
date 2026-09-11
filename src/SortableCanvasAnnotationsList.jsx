@@ -10,6 +10,84 @@ import {
   annotationTitle, groupAnnotationItems, withJourneyOrder, withTopLevelOrder,
 } from './annotationListGrouping';
 
+// Shared by the top-level list and every journey's nested list so a poi can be dragged between
+// them. Module-level (not recreated on every render): react-sortablejs only re-reads its option
+// object at mount time (see componentDidMount/makeOptions in react-sortablejs - componentDidUpdate
+// only reacts to the `disabled` prop), so a fresh object identity each render buys nothing but
+// is worth avoiding for clarity.
+const GROUP_NAME = 'maps-annotation-list';
+const TOP_LEVEL_GROUP = { name: GROUP_NAME, put: true };
+const JOURNEY_GROUP = {
+  name: GROUP_NAME,
+  put: (toList, fromList, dragEl) => dragEl.getAttribute('data-kind') === 'POI',
+};
+
+/**
+ * One journey's nested sortable poi list (issue #344), split out of
+ * SortableCanvasAnnotationsList into its own component so it owns its own reorder state -
+ * see that component's module comment for why. `pois` is this journey's canonical
+ * (redux-derived) poi list; `persist` is the shared, stateless save callback.
+ */
+function JourneyPoiList({
+  journeyId, persist, pois, renderRow,
+}) {
+  const isDraggingRef = useRef(false);
+  const [localPois, setLocalPois] = useState(pois);
+
+  // Mirrors SortableCanvasAnnotationsList's own sync effect, scoped to this journey alone:
+  // only this journey's own canonical pois resets this list, and only when this list itself
+  // isn't mid-drag.
+  useEffect(() => {
+    if (isDraggingRef.current) return;
+    setLocalPois(pois);
+  }, [pois]);
+
+  const handleDragStart = useCallback(() => {
+    isDraggingRef.current = true;
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    isDraggingRef.current = false;
+  }, []);
+
+  const handleSetList = useCallback((newList) => {
+    const updated = newList.map((poi, position) => withJourneyOrder(poi, journeyId, position));
+    setLocalPois(updated);
+    updated.reduce(
+      (chain, entry) => chain.then(() => persist(entry)),
+      Promise.resolve(),
+    );
+  }, [journeyId, persist]);
+
+  return (
+    <ReactSortable
+      animation={150}
+      forceFallback
+      group={JOURNEY_GROUP}
+      list={localPois}
+      onEnd={handleDragEnd}
+      onStart={handleDragStart}
+      setList={handleSetList}
+      tag="ul"
+      style={{ listStyle: 'none', margin: 0, paddingInlineStart: 24 }}
+    >
+      {localPois.map((poi) => (
+        <li key={poi.id} style={{ listStyle: 'none' }} data-kind="POI">
+          {renderRow(poi)}
+        </li>
+      ))}
+    </ReactSortable>
+  );
+}
+
+JourneyPoiList.propTypes = {
+  journeyId: PropTypes.string.isRequired,
+  persist: PropTypes.func.isRequired,
+  // eslint-disable-next-line react/forbid-prop-types -- raw annotation JSON, no fixed shape
+  pois: PropTypes.arrayOf(PropTypes.object).isRequired,
+  renderRow: PropTypes.func.isRequired,
+};
+
 /**
  * The maps plugin's two-level sortable annotation list (issue #344): journeys are always at
  * the top level, alongside any poi with no journey; a poi that belongs to a journey is nested
@@ -21,13 +99,18 @@ import {
  * Built on react-sortablejs/SortableJS, sharing one `group` between the top-level list and
  * every journey's nested list, so a poi can be dragged between them (and a journey - tagged
  * `data-kind="Journey"` on its row - is refused by every nested list's `group.put`, since a
- * journey can't itself belong to a journey). NOTE (react-sortablejs's own documented caveat,
- * see its README's "Nesting" section): a sortable list nested inside another sortable list's
- * item is flagged upstream as not fully solid yet ("the child updates the state twice") - this
- * is exactly that shape (each journey's nested list lives inside the top-level list's row for
- * that journey), so drag-and-drop between a journey and the top level should get real browser
- * QA before shipping, even though the ordering/persistence logic itself
- * (annotationListGrouping.js) is unit-tested independently of SortableJS.
+ * journey can't itself belong to a journey).
+ *
+ * react-sortablejs's own documented caveat (see its README's "Nesting" section) is that a
+ * parent list and a nested child list sharing one `setState` function get their state updated
+ * twice per cross-list move, which can leave a stray duplicate DOM node behind: SortableJS
+ * moves the dragged element's real DOM node directly (outside React) while React's own
+ * reconciliation, driven by the shared state update, independently unmounts/remounts it in
+ * the other list's tree. The README's own guidance is that this only reliably works when the
+ * lists involved in a move don't share one setState - so the top-level list
+ * (`localTopLevel`, below) and each journey's nested list (`JourneyPoiList`'s own `localPois`)
+ * each own an independent `useState`, synced from this canvas's `items` prop but never
+ * touching each other's state directly; only `persist`, which does no rendering, is shared.
  *
  * `items` is the canvas's raw annotation JSON (annotationsOnCanvases[canvasId], merged across
  * annotation pages) - unlike mirador core's own getAnnotationResourcesDataForCanvas selector,
@@ -50,26 +133,29 @@ export default function SortableCanvasAnnotationsList({
   windowId,
 }) {
   const { i18n, t } = useTranslation();
-  const [localItems, setLocalItems] = useState(items);
 
-  // SortableJS moves DOM nodes itself, outside React's control, for the whole span of a drag
-  // gesture (pointerdown through drop). If `items` changes identity - e.g. an unrelated redux
-  // dispatch elsewhere in a host app touches annotationsOnCanvases - while a drag is still in
-  // progress, this effect resetting localItems would make React reconcile against a DOM that no
-  // longer matches what it last rendered, which can leave stray duplicate nodes behind instead
-  // of moving the existing ones. isDraggingRef defers that reset until the drag's own onEnd, at
-  // which point the normal post-drop items update (from this list's own persist/receiveAnnotation)
-  // covers picking up the latest state anyway.
+  const canonicalGrouped = useMemo(() => groupAnnotationItems(items), [items]);
+  const canonicalTopLevel = useMemo(
+    () => canonicalGrouped.map((entry) => entry.item),
+    [canonicalGrouped],
+  );
+  const poisByJourneyId = useMemo(() => {
+    const map = new Map();
+    canonicalGrouped.forEach((entry) => {
+      if (entry.kind === 'Journey') map.set(entry.id, entry.pois);
+    });
+    return map;
+  }, [canonicalGrouped]);
+
   const isDraggingRef = useRef(false);
+  const [localTopLevel, setLocalTopLevel] = useState(canonicalTopLevel);
 
-  // Only the map's own edits (from elsewhere - another tab, a save in this same list) should
-  // ever reset local state; an in-progress drag's own setList calls must not be clobbered by
-  // this effect re-firing from the very re-render they themselves triggered upstream in
-  // annotationsOnCanvases, so this mirrors POITemplate's "load once, then own it" pattern.
+  // See the module comment above: only this list's own canonical top-level items reset it,
+  // and only when it isn't mid-drag itself - a journey's own nested drag doesn't touch this.
   useEffect(() => {
     if (isDraggingRef.current) return;
-    setLocalItems(items);
-  }, [items]);
+    setLocalTopLevel(canonicalTopLevel);
+  }, [canonicalTopLevel]);
 
   const handleDragStart = useCallback(() => {
     isDraggingRef.current = true;
@@ -79,9 +165,6 @@ export default function SortableCanvasAnnotationsList({
     isDraggingRef.current = false;
   }, []);
 
-  const grouped = useMemo(() => groupAnnotationItems(localItems), [localItems]);
-  const topLevelList = useMemo(() => grouped.map((entry) => entry.item), [grouped]);
-
   const persist = useCallback((annotation) => {
     const adapter = storageAdapter(canvasId);
     return adapter.update(annotation).then((annoPage) => {
@@ -89,29 +172,14 @@ export default function SortableCanvasAnnotationsList({
     });
   }, [storageAdapter, canvasId, receiveAnnotation]);
 
-  const mergeSlice = useCallback((updatedSlice) => {
-    setLocalItems((current) => {
-      const byId = new Map(current.map((entry) => [entry.id, entry]));
-      updatedSlice.forEach((entry) => {
-        byId.set(entry.id, entry);
-      });
-      return Array.from(byId.values());
-    });
-    updatedSlice.reduce(
+  const handleTopLevelSetList = useCallback((newList) => {
+    const updated = newList.map((entry, position) => withTopLevelOrder(entry, position));
+    setLocalTopLevel(updated);
+    updated.reduce(
       (chain, entry) => chain.then(() => persist(entry)),
       Promise.resolve(),
     );
   }, [persist]);
-
-  const handleTopLevelSetList = useCallback((newList) => {
-    const updated = newList.map((entry, position) => withTopLevelOrder(entry, position));
-    mergeSlice(updated);
-  }, [mergeSlice]);
-
-  const handleJourneySetList = useCallback((journeyId, newList) => {
-    const updated = newList.map((poi, position) => withJourneyOrder(poi, journeyId, position));
-    mergeSlice(updated);
-  }, [mergeSlice]);
 
   const handleSelect = useCallback((annotationId) => {
     if (window.getSelection()?.toString()) return;
@@ -147,7 +215,7 @@ export default function SortableCanvasAnnotationsList({
     );
   };
 
-  if (topLevelList.length === 0) {
+  if (localTopLevel.length === 0) {
     return null;
   }
 
@@ -159,42 +227,28 @@ export default function SortableCanvasAnnotationsList({
       <ReactSortable
         animation={150}
         forceFallback
-        group={{ name: 'maps-annotation-list', put: true }}
-        list={topLevelList}
+        group={TOP_LEVEL_GROUP}
+        list={localTopLevel}
         onEnd={handleDragEnd}
         onStart={handleDragStart}
         setList={handleTopLevelSetList}
         tag="ul"
         style={{ listStyle: 'none', margin: 0, padding: 0 }}
       >
-        {grouped.map((entry) => (
-          entry.kind === 'Journey' ? (
-            <li key={entry.id} style={{ listStyle: 'none' }} data-kind="Journey">
-              {renderRow(entry.item)}
-              <ReactSortable
-                animation={150}
-                forceFallback
-                group={{
-                  name: 'maps-annotation-list',
-                  put: (toList, fromList, dragEl) => dragEl.getAttribute('data-kind') === 'POI',
-                }}
-                list={entry.pois}
-                onEnd={handleDragEnd}
-                onStart={handleDragStart}
-                setList={(newList) => handleJourneySetList(entry.id, newList)}
-                tag="ul"
-                style={{ listStyle: 'none', margin: 0, paddingInlineStart: 24 }}
-              >
-                {entry.pois.map((poi) => (
-                  <li key={poi.id} style={{ listStyle: 'none' }} data-kind="POI">
-                    {renderRow(poi)}
-                  </li>
-                ))}
-              </ReactSortable>
+        {localTopLevel.map((item) => (
+          item['dbf:kind'] === 'Journey' ? (
+            <li key={item.id} style={{ listStyle: 'none' }} data-kind="Journey">
+              {renderRow(item)}
+              <JourneyPoiList
+                journeyId={item.id}
+                persist={persist}
+                pois={poisByJourneyId.get(item.id) ?? []}
+                renderRow={renderRow}
+              />
             </li>
           ) : (
-            <li key={entry.id} style={{ listStyle: 'none' }} data-kind="POI">
-              {renderRow(entry.item)}
+            <li key={item.id} style={{ listStyle: 'none' }} data-kind="POI">
+              {renderRow(item)}
             </li>
           )
         ))}
