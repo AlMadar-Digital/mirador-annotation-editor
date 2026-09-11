@@ -165,11 +165,31 @@ export default function SortableCanvasAnnotationsList({
     isDraggingRef.current = false;
   }, []);
 
+  // Every list on this canvas (the top-level one and each journey's own) now persists
+  // through this SAME queue, even though they each own independent render state (see the
+  // module comment above). That's essential, not incidental: most annotation adapters'
+  // update() is a read-modify-write over the WHOLE annotation page (read all, splice one
+  // item, write all back - see e.g. LocalStorageAdapter.update()), so two persist() calls
+  // in flight at once - one from the source list's reduce chain, one from the
+  // destination's, exactly what a cross-list drag fires - can each read the page before the
+  // other's write lands and then clobber it back to a stale copy on write. A single-list
+  // drag (reordering within one list, or the old shared-state code before this file's own
+  // history) never hit this, since only one list's chain was ever running; a cross-list
+  // move needs two lists' chains to actually be ordered against each other, not just each
+  // internally sequential.
+  const persistQueueRef = useRef(Promise.resolve());
+
   const persist = useCallback((annotation) => {
     const adapter = storageAdapter(canvasId);
-    return adapter.update(annotation).then((annoPage) => {
+    /** Runs this one annotation's write once every write queued ahead of it has settled. */
+    const run = () => adapter.update(annotation).then((annoPage) => {
       receiveAnnotation(canvasId, adapter.annotationPageId, annoPage);
     });
+    const result = persistQueueRef.current.then(run, run);
+    // Keep the queue moving even if this write failed - a rejection here must not stall
+    // every persist queued after it.
+    persistQueueRef.current = result.catch(() => {});
+    return result;
   }, [storageAdapter, canvasId, receiveAnnotation]);
 
   const handleTopLevelSetList = useCallback((newList) => {
