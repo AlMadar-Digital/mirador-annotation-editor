@@ -1,5 +1,5 @@
 import React, {
-  useCallback, useEffect, useMemo, useState,
+  useCallback, useEffect, useMemo, useRef, useState,
 } from 'react';
 import PropTypes from 'prop-types';
 import { ReactSortable } from 'react-sortablejs';
@@ -52,13 +52,32 @@ export default function SortableCanvasAnnotationsList({
   const { i18n, t } = useTranslation();
   const [localItems, setLocalItems] = useState(items);
 
+  // SortableJS moves DOM nodes itself, outside React's control, for the whole span of a drag
+  // gesture (pointerdown through drop). If `items` changes identity - e.g. an unrelated redux
+  // dispatch elsewhere in a host app touches annotationsOnCanvases - while a drag is still in
+  // progress, this effect resetting localItems would make React reconcile against a DOM that no
+  // longer matches what it last rendered, which can leave stray duplicate nodes behind instead
+  // of moving the existing ones. isDraggingRef defers that reset until the drag's own onEnd, at
+  // which point the normal post-drop items update (from this list's own persist/receiveAnnotation)
+  // covers picking up the latest state anyway.
+  const isDraggingRef = useRef(false);
+
   // Only the map's own edits (from elsewhere - another tab, a save in this same list) should
   // ever reset local state; an in-progress drag's own setList calls must not be clobbered by
   // this effect re-firing from the very re-render they themselves triggered upstream in
   // annotationsOnCanvases, so this mirrors POITemplate's "load once, then own it" pattern.
   useEffect(() => {
+    if (isDraggingRef.current) return;
     setLocalItems(items);
   }, [items]);
+
+  const handleDragStart = useCallback(() => {
+    isDraggingRef.current = true;
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    isDraggingRef.current = false;
+  }, []);
 
   const grouped = useMemo(() => groupAnnotationItems(localItems), [localItems]);
   const topLevelList = useMemo(() => grouped.map((entry) => entry.item), [grouped]);
@@ -142,6 +161,8 @@ export default function SortableCanvasAnnotationsList({
         forceFallback
         group={{ name: 'maps-annotation-list', put: true }}
         list={topLevelList}
+        onEnd={handleDragEnd}
+        onStart={handleDragStart}
         setList={handleTopLevelSetList}
         tag="ul"
         style={{ listStyle: 'none', margin: 0, padding: 0 }}
@@ -158,6 +179,8 @@ export default function SortableCanvasAnnotationsList({
                   put: (toList, fromList, dragEl) => dragEl.getAttribute('data-kind') === 'POI',
                 }}
                 list={entry.pois}
+                onEnd={handleDragEnd}
+                onStart={handleDragStart}
                 setList={(newList) => handleJourneySetList(entry.id, newList)}
                 tag="ul"
                 style={{ listStyle: 'none', margin: 0, paddingInlineStart: 24 }}
