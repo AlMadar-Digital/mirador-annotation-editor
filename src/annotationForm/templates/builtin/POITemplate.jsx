@@ -323,27 +323,29 @@ export default function POITemplate(
 
   return (
     <Grid container direction="column" spacing={2} ref={rootRef}>
-      <Grid>
-        <Typography variant="formSectionTitle">{t('poi')}</Typography>
-      </Grid>
-      {contentLocales.length > 1 && (
+      <Grid container direction="row" spacing={2} alignItems="center" justifyContent="space-between">
         <Grid>
-          <FormControl size="small" sx={{ minWidth: 160 }}>
-            <InputLabel id="poi-language-label">{t('poi_language')}</InputLabel>
-            <Select
-              labelId="poi-language-label"
-              label={t('poi_language')}
-              value={activeLocale ?? ''}
-              onChange={(event) => setActiveLocale(event.target.value)}
-              MenuProps={{ container: dialogContainer }}
-            >
-              {contentLocales.map(({ code, name }) => (
-                <MenuItem key={code} value={code}>{name ?? code}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          <Typography variant="formSectionTitle">{t('poi')}</Typography>
         </Grid>
-      )}
+        {contentLocales.length > 1 && (
+          <Grid>
+            <FormControl size="small" sx={{ minWidth: 160 }}>
+              <InputLabel id="poi-language-label">{t('poi_language')}</InputLabel>
+              <Select
+                labelId="poi-language-label"
+                label={t('poi_language')}
+                value={activeLocale ?? ''}
+                onChange={(event) => setActiveLocale(event.target.value)}
+                MenuProps={{ container: dialogContainer }}
+              >
+                {contentLocales.map(({ code, name }) => (
+                  <MenuItem key={code} value={code}>{name ?? code}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+        )}
+      </Grid>
       <Grid>
         <TextField
           fullWidth
