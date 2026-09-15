@@ -32,13 +32,24 @@ function JourneyPoiList({
   journeyId, persist, pois, renderRow,
 }) {
   const isDraggingRef = useRef(false);
+  // A drop fires one persist() per item in this list (see handleSetList below), each a
+  // separate read-modify-write round trip that lands in redux the moment IT resolves - not
+  // when the whole drop's batch does. Until every one of them has landed, `pois` (redux's
+  // canonical state) only reflects however many of them have committed *so far*, lagging
+  // behind the optimistic `localPois` already on screen. Counting them here lets the sync
+  // effect below tell "a drop is still being persisted" apart from "dragging" (isDraggingRef,
+  // already false again by the time this fires - SortableJS's onEnd doesn't wait for
+  // handleSetList's own async work) - without it, the effect would resync `localPois` to
+  // that partial canonical state on every intermediate commit, visibly flickering/reverting
+  // the list until the last item in the drop finally lands (issue #344 follow-up).
+  const pendingWritesRef = useRef(0);
   const [localPois, setLocalPois] = useState(pois);
 
   // Mirrors SortableCanvasAnnotationsList's own sync effect, scoped to this journey alone:
   // only this journey's own canonical pois resets this list, and only when this list itself
-  // isn't mid-drag.
+  // isn't mid-drag or mid-persist.
   useEffect(() => {
-    if (isDraggingRef.current) return;
+    if (isDraggingRef.current || pendingWritesRef.current > 0) return;
     setLocalPois(pois);
   }, [pois]);
 
@@ -53,10 +64,13 @@ function JourneyPoiList({
   const handleSetList = useCallback((newList) => {
     const updated = newList.map((poi, position) => withJourneyOrder(poi, journeyId, position));
     setLocalPois(updated);
+    pendingWritesRef.current += 1;
     updated.reduce(
       (chain, entry) => chain.then(() => persist(entry)),
       Promise.resolve(),
-    );
+    ).finally(() => {
+      pendingWritesRef.current -= 1;
+    });
   }, [journeyId, persist]);
 
   return (
@@ -148,12 +162,17 @@ export default function SortableCanvasAnnotationsList({
   }, [canonicalGrouped]);
 
   const isDraggingRef = useRef(false);
+  // See JourneyPoiList's own pendingWritesRef comment above - same lagging-canonical-state
+  // problem, one level up: a top-level drop persists each reordered item separately, and
+  // `canonicalTopLevel` only catches up one commit at a time.
+  const pendingWritesRef = useRef(0);
   const [localTopLevel, setLocalTopLevel] = useState(canonicalTopLevel);
 
   // See the module comment above: only this list's own canonical top-level items reset it,
-  // and only when it isn't mid-drag itself - a journey's own nested drag doesn't touch this.
+  // and only when it isn't mid-drag or mid-persist itself - a journey's own nested drag
+  // doesn't touch this.
   useEffect(() => {
-    if (isDraggingRef.current) return;
+    if (isDraggingRef.current || pendingWritesRef.current > 0) return;
     setLocalTopLevel(canonicalTopLevel);
   }, [canonicalTopLevel]);
 
@@ -195,10 +214,13 @@ export default function SortableCanvasAnnotationsList({
   const handleTopLevelSetList = useCallback((newList) => {
     const updated = newList.map((entry, position) => withTopLevelOrder(entry, position));
     setLocalTopLevel(updated);
+    pendingWritesRef.current += 1;
     updated.reduce(
       (chain, entry) => chain.then(() => persist(entry)),
       Promise.resolve(),
-    );
+    ).finally(() => {
+      pendingWritesRef.current -= 1;
+    });
   }, [persist]);
 
   const handleSelect = useCallback((annotationId) => {
