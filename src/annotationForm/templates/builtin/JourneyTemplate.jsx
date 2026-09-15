@@ -13,15 +13,11 @@ import { useSelector } from 'react-redux';
 import { getConfig } from 'dbf-mirador';
 import { TEMPLATE } from '../../AnnotationFormUtils';
 import { templateKit } from '../kit';
-import { MediaItemRelationField } from '../templateComponents/MediaItemRelationField';
+import { MediaSelectionField } from '../templateComponents/MediaSelectionField';
 import { RichTextField } from '../templateComponents/RichTextField';
-import { applyPoiBodyConversion, MEDIA_ITEM_BODY_TYPE } from './POITemplate';
+import { applyPoiBodyConversion, parseContentByLocale } from './POITemplate';
 
 const { AnnotationFormFooter } = templateKit;
-
-/** IIIF content-resource type for a journey's title/description body items - same convention
- * as POITemplate's TEXTUAL_BODY_TYPE. */
-const TEXTUAL_BODY_TYPE = 'TextualBody';
 
 /** Arabic (any variant) is the only right-to-left content locale offered today - same rule as
  * POITemplate's isRtlLocale. */
@@ -63,9 +59,9 @@ export default function JourneyTemplate(
     t,
   },
 ) {
-  const { contentLocales = [], searchMediaItems } = useSelector(
-    (state) => getConfig(state),
-  ).annotation ?? {};
+  const {
+    contentLocales = [], searchMediaItems, searchIiifImages, searchUploads,
+  } = useSelector((state) => getConfig(state)).annotation ?? {};
 
   let maeAnnotation = annotation;
 
@@ -73,6 +69,7 @@ export default function JourneyTemplate(
     maeAnnotation = {
       body: [],
       'dbf:kind': 'Journey',
+      'dbf:media': null,
       maeData: {
         contentByLocale: {},
         target: {},
@@ -82,34 +79,11 @@ export default function JourneyTemplate(
       target: null,
     };
   } else {
-    // Rebuild contentByLocale from the saved body - identical to POITemplate's own rehydration
-    // (see its own comment for why only the first describing TextualBody per language is kept).
-    const contentByLocale = {};
-    const localesWithDescription = new Set();
-    maeAnnotation.body.forEach((body) => {
-      const locale = body.language;
-      if (!locale) return;
-      const content = contentByLocale[locale] ?? { description: '', title: '' };
-      if (body.purpose === 'identifying') {
-        content.title = body.value ?? '';
-      } else if (body.type === MEDIA_ITEM_BODY_TYPE) {
-        content.mediaItem = body.id ? {
-          documentId: body.id,
-          mediaType: body.mediaType ?? null,
-          thumbnailUrl: body.thumbnailUrl ?? null,
-          titleEn: body.title,
-        } : null;
-      } else if (
-        body.purpose === 'describing'
-        && body.type === TEXTUAL_BODY_TYPE
-        && !localesWithDescription.has(locale)
-      ) {
-        content.description = body.value ?? '';
-        localesWithDescription.add(locale);
-      }
-      contentByLocale[locale] = content;
-    });
-    maeAnnotation.maeData.contentByLocale = contentByLocale;
+    // Rebuild contentByLocale from the saved body - reuses POITemplate's own rehydration (see
+    // its own doc for the "first describing item per locale wins" rule). dbf:media (issue #391)
+    // is read directly off maeAnnotation below, not part of this per-locale map - it's a
+    // root-level annotation extension, not tied to a language.
+    maeAnnotation.maeData.contentByLocale = parseContentByLocale(maeAnnotation.body);
   }
 
   const [annotationState, setAnnotationState] = useState(maeAnnotation);
@@ -146,6 +120,16 @@ export default function JourneyTemplate(
         ...annotationState.maeData.contentByLocale,
         [activeLocale]: { ...activeLocaleContent, ...patch },
       },
+    });
+  };
+
+  /** Update the attached media, or clear it (media is `null`) - a root-level annotation
+   * extension, not tied to a language (issue #391), same pattern as NestedMapTemplate's
+   * updateLinkedMap for `dbf:linkedMap`. */
+  const updateMedia = (media) => {
+    setAnnotationState({
+      ...annotationState,
+      'dbf:media': media,
     });
   };
 
@@ -199,15 +183,17 @@ export default function JourneyTemplate(
           }}
         />
       </Grid>
-      {typeof searchMediaItems === 'function' && (
+      {(searchMediaItems || searchIiifImages || searchUploads) && (
         <Grid>
-          <MediaItemRelationField
+          <MediaSelectionField
             dialogContainer={dialogContainer}
-            label={t('journey_media_item')}
-            onChange={(mediaItem) => updateActiveLocaleContent({ mediaItem })}
-            onSearch={searchMediaItems}
+            label={t('journey_media')}
+            onChange={updateMedia}
+            onSearchIiifImages={searchIiifImages}
+            onSearchMediaItems={searchMediaItems}
+            onSearchUploads={searchUploads}
             t={t}
-            value={activeLocaleContent.mediaItem}
+            value={annotationState['dbf:media'] ?? null}
           />
         </Grid>
       )}

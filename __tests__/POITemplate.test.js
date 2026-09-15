@@ -184,40 +184,13 @@ describe('applyPoiBodyConversion', () => {
     expect(result.body.some((item) => item.purpose === 'describing' && item.type === 'TextualBody')).toBe(false);
   });
 
-  it('appends a MediaItem describing body when a media item is attached, carrying its title', () => {
+  it('never adds a MediaItem-typed item to the body - media is a root-level dbf:media extension, not a body item (issue #391)', () => {
     const state = basePoiState();
-    state.maeData.contentByLocale.en.mediaItem = { documentId: 'media-1', titleEn: 'Dome of the Rock tour' };
+    state['dbf:media'] = { id: 'media-1', source: 'media-item', title: 'Dome of the Rock tour' };
 
     const result = applyPoiBodyConversion(state);
-
-    expect(result.body.slice(1)).toEqual([
-      {
-        id: 'media-1', language: 'en', purpose: 'describing', title: 'Dome of the Rock tour', type: 'MediaItem',
-      },
-    ]);
-  });
-
-  it('omits the MediaItem body entirely for a locale the media field was never touched for', () => {
-    const result = applyPoiBodyConversion(basePoiState());
 
     expect(result.body.some((item) => item.type === 'MediaItem')).toBe(false);
-  });
-
-  it('emits an explicit null-id MediaItem body when a media item was attached then cleared', () => {
-    const state = basePoiState();
-    // A locale the editor's media field was touched for, but has no media attached (distinct
-    // from never having the `mediaItem` key at all - see applyPoiBodyConversion's own-property
-    // check): must still emit an explicit body item so the server disconnects mediaEn/mediaAr,
-    // instead of silently leaving a previously-attached one untouched.
-    state.maeData.contentByLocale.en.mediaItem = null;
-
-    const result = applyPoiBodyConversion(state);
-
-    expect(result.body.slice(1)).toEqual([
-      {
-        id: null, language: 'en', purpose: 'describing', title: null, type: 'MediaItem',
-      },
-    ]);
   });
 
   it('builds one identifying + describing group per locale actually present', () => {
@@ -242,22 +215,25 @@ describe('applyPoiBodyConversion', () => {
     ]);
   });
 
-  it('leaves an existing dbf:journey/dbf:linkedMap untouched - these are Strapi-managed relations, not editable here', () => {
+  it('leaves an existing dbf:journey/dbf:linkedMap/dbf:media untouched - these are set/managed outside applyPoiBodyConversion (dbf:media directly by MediaSelectionField\'s onChange, issue #391; dbf:journey/dbf:linkedMap from the Strapi backoffice)', () => {
     const state = basePoiState();
     state['dbf:journey'] = { id: 'journey-1', order: 3 };
     state['dbf:linkedMap'] = { id: 'map-7', type: 'Manifest' };
+    state['dbf:media'] = { id: 'media-1', source: 'media-item', title: 'Dome of the Rock tour' };
 
     const result = applyPoiBodyConversion(state);
 
     expect(result['dbf:journey']).toEqual({ id: 'journey-1', order: 3 });
     expect(result['dbf:linkedMap']).toEqual({ id: 'map-7', type: 'Manifest' });
+    expect(result['dbf:media']).toEqual({ id: 'media-1', source: 'media-item', title: 'Dome of the Rock tour' });
   });
 
-  it('does not add dbf:journey/dbf:linkedMap when the annotation never had them', () => {
+  it('does not add dbf:journey/dbf:linkedMap/dbf:media when the annotation never had them', () => {
     const result = applyPoiBodyConversion(basePoiState());
 
     expect(result).not.toHaveProperty('dbf:journey');
     expect(result).not.toHaveProperty('dbf:linkedMap');
+    expect(result).not.toHaveProperty('dbf:media');
   });
 });
 
@@ -294,6 +270,8 @@ describe('POITemplate (render)', () => {
     saveAnnotation = vi.fn(),
     contentLocales = [],
     searchMediaItems = undefined,
+    searchIiifImages = undefined,
+    searchUploads = undefined,
   ) => render(
     <I18nextProvider i18n={i18n}>
       <POITemplate
@@ -305,7 +283,15 @@ describe('POITemplate (render)', () => {
         windowId="window1"
       />
     </I18nextProvider>,
-    { preloadedState: { config: { annotation: { contentLocales, searchMediaItems } } } },
+    {
+      preloadedState: {
+        config: {
+          annotation: {
+            contentLocales, searchIiifImages, searchMediaItems, searchUploads,
+          },
+        },
+      },
+    },
   );
 
   it('does not save and shows an error when the target is not a single point', () => {
@@ -435,13 +421,13 @@ describe('POITemplate (render)', () => {
     expect(screen.getByTestId('poi-description')).toHaveAttribute('data-rtl', 'true');
   });
 
-  it('does not render a media item field when no searchMediaItems capability is configured', () => {
+  it('does not render a media field when no search capability is configured (issue #391)', () => {
     renderPoiTemplate();
 
-    expect(screen.queryByText('poi_media_item')).not.toBeInTheDocument();
+    expect(screen.queryByText('poi_media')).not.toBeInTheDocument();
   });
 
-  it('lets the editor search and attach a media item, then reflects the pick', async () => {
+  it('lets the editor search and attach a media item, then reflects the pick (issue #391)', async () => {
     const searchMediaItems = vi.fn().mockResolvedValue([
       {
         documentId: 'media-1', mediaType: 'audio', purpose: 'audio-tour', titleEn: 'Dome of the Rock tour',
@@ -449,26 +435,26 @@ describe('POITemplate (render)', () => {
     ]);
     renderPoiTemplate({}, vi.fn(), [], searchMediaItems);
 
-    const mediaField = screen.getByLabelText('poi_media_item');
+    const mediaField = screen.getByLabelText('poi_media');
     await userEvent.type(mediaField, 'Dome');
 
     await waitFor(() => expect(searchMediaItems).toHaveBeenCalledWith('Dome'));
     fireEvent.click(await screen.findByRole('option', { name: 'Dome of the Rock tour' }));
 
-    expect(screen.getByLabelText('poi_media_item')).toHaveValue('Dome of the Rock tour');
+    expect(screen.getByLabelText('poi_media')).toHaveValue('Dome of the Rock tour');
   });
 
-  it('rehydrates an already-attached media item from the saved annotation body', () => {
+  it('rehydrates an already-attached media selection from the annotation\'s root-level dbf:media (issue #391)', () => {
     renderPoiTemplate({
       body: [
         {
           language: 'en', purpose: 'identifying', type: 'TextualBody', value: 'Dome of the Rock',
         },
-        {
-          id: 'media-1', language: 'en', purpose: 'describing', title: 'Dome of the Rock tour', type: 'MediaItem',
-        },
       ],
       'dbf:kind': 'POI',
+      'dbf:media': {
+        id: 'media-1', mediaType: 'audio', source: 'media-item', thumbnailUrl: null, title: 'Dome of the Rock tour',
+      },
       id: 'canvas1/annotation/1',
       maeData: {
         target: { drawingState: JSON.stringify({ shapes: [poiShape()] }) },
@@ -481,26 +467,24 @@ describe('POITemplate (render)', () => {
       },
     }, vi.fn(), [], vi.fn().mockResolvedValue([]));
 
-    expect(screen.getByLabelText('poi_media_item')).toHaveValue('Dome of the Rock tour');
+    expect(screen.getByLabelText('poi_media')).toHaveValue('Dome of the Rock tour');
   });
 
-  it('shows a thumbnail preview for a rehydrated media item that has one (issue #333)', () => {
+  it('shows a thumbnail preview for a rehydrated media selection that has one (issue #333, #391)', () => {
     renderPoiTemplate({
       body: [
         {
           language: 'en', purpose: 'identifying', type: 'TextualBody', value: 'Dome of the Rock',
         },
-        {
-          id: 'media-1',
-          language: 'en',
-          mediaType: 'youtube-video',
-          purpose: 'describing',
-          thumbnailUrl: 'https://img.youtube.com/vi/abc123/mqdefault.jpg',
-          title: 'Dome of the Rock tour',
-          type: 'MediaItem',
-        },
       ],
       'dbf:kind': 'POI',
+      'dbf:media': {
+        id: 'media-1',
+        mediaType: 'youtube-video',
+        source: 'media-item',
+        thumbnailUrl: 'https://img.youtube.com/vi/abc123/mqdefault.jpg',
+        title: 'Dome of the Rock tour',
+      },
       id: 'canvas1/annotation/1',
       maeData: {
         target: { drawingState: JSON.stringify({ shapes: [poiShape()] }) },
@@ -513,26 +497,20 @@ describe('POITemplate (render)', () => {
       },
     }, vi.fn(), [], vi.fn().mockResolvedValue([]));
 
-    expect(screen.getByTestId('media-item-thumbnail')).toHaveAttribute('src', 'https://img.youtube.com/vi/abc123/mqdefault.jpg');
+    expect(screen.getByTestId('media-selection-thumbnail')).toHaveAttribute('src', 'https://img.youtube.com/vi/abc123/mqdefault.jpg');
   });
 
-  it('falls back to a mediaType icon for a rehydrated media item with no thumbnail', () => {
+  it('falls back to a mediaType icon for a rehydrated media-item selection with no thumbnail (issue #391)', () => {
     renderPoiTemplate({
       body: [
         {
           language: 'en', purpose: 'identifying', type: 'TextualBody', value: 'Dome of the Rock',
         },
-        {
-          id: 'media-1',
-          language: 'en',
-          mediaType: 'audio',
-          purpose: 'describing',
-          thumbnailUrl: null,
-          title: 'Dome of the Rock tour',
-          type: 'MediaItem',
-        },
       ],
       'dbf:kind': 'POI',
+      'dbf:media': {
+        id: 'media-1', mediaType: 'audio', source: 'media-item', thumbnailUrl: null, title: 'Dome of the Rock tour',
+      },
       id: 'canvas1/annotation/1',
       maeData: {
         target: { drawingState: JSON.stringify({ shapes: [poiShape()] }) },
@@ -548,17 +526,15 @@ describe('POITemplate (render)', () => {
     expect(screen.getByTestId('AudiotrackIcon')).toBeInTheDocument();
   });
 
-  it('rehydrates an explicitly-cleared media item (null id) as an empty field, without crashing', () => {
+  it('renders an empty media field when dbf:media is explicitly null on a loaded annotation, without crashing (issue #391)', () => {
     renderPoiTemplate({
       body: [
         {
           language: 'en', purpose: 'identifying', type: 'TextualBody', value: 'Dome of the Rock',
         },
-        {
-          id: null, language: 'en', purpose: 'describing', title: null, type: 'MediaItem',
-        },
       ],
       'dbf:kind': 'POI',
+      'dbf:media': null,
       id: 'canvas1/annotation/1',
       maeData: {
         target: { drawingState: JSON.stringify({ shapes: [poiShape()] }) },
@@ -571,7 +547,7 @@ describe('POITemplate (render)', () => {
       },
     }, vi.fn(), [], vi.fn().mockResolvedValue([]));
 
-    expect(screen.getByLabelText('poi_media_item')).toHaveValue('');
+    expect(screen.getByLabelText('poi_media')).toHaveValue('');
   });
 
   it('shows a spinner and disables Save/Cancel while the save is in flight, then re-enables them', async () => {

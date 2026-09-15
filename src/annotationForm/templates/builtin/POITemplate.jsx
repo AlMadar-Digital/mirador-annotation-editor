@@ -15,7 +15,7 @@ import { TEMPLATE } from '../../AnnotationFormUtils';
 import { resizeKonvaStage, SHAPES_TOOL } from '../../AnnotationFormOverlay/KonvaDrawing/KonvaUtils';
 import { finalizeSpatialTarget, getDefaultValue, isEmptyValue } from '../../../IIIFUtils';
 import { templateKit } from '../kit';
-import { MediaItemRelationField } from '../templateComponents/MediaItemRelationField';
+import { MediaSelectionField } from '../templateComponents/MediaSelectionField';
 import { RichTextField } from '../templateComponents/RichTextField';
 
 const { AnnotationFormFooter, TargetFormSection } = templateKit;
@@ -29,11 +29,6 @@ const { AnnotationFormFooter, TargetFormSection } = templateKit;
  * regardless. */
 export const TEXTUAL_BODY_TYPE = 'TextualBody';
 
-/** The body-item type of a POI's per-language Media Item relation (mediaEn/mediaAr) - kept
- * distinct from TEXTUAL_BODY_TYPE since it's a single field per language holding a Strapi Media
- * Item relation, not free text. */
-export const MEDIA_ITEM_BODY_TYPE = 'MediaItem';
-
 /** Arabic (any variant - e.g. 'ar', 'ar-SA') is the only right-to-left content locale POI's
  * contentLocales currently offers (Strapi's GET /maps/locales hardcodes [en, ar]). Matches the
  * name-suffix convention apps/strapi/src/admin/rtl-fields.css already uses for the same *Ar
@@ -44,31 +39,25 @@ export const isRtlLocale = (localeCode) => (
   typeof localeCode === 'string' && localeCode.toLowerCase().startsWith('ar')
 );
 
-// Deliberately has no `mediaItem` key: applyPoiBodyConversion only emits a MediaItem body item
-// for a locale whose content object actually HAS that key (added either by rehydrating an
-// existing one, or by the user touching MediaItemRelationField - see its onChange below), so
-// that a locale where the editor never touched media doesn't get its mediaEn/mediaAr silently
-// disconnected server-side. Baking `mediaItem: null` into this fallback would defeat that: any
-// edit to title/description alone (which merges this fallback in via updateActiveLocaleContent)
-// would then look identical to an explicit "no media" clear.
 export const EMPTY_LOCALE_CONTENT = { description: '', title: '' };
 
-/** Read one locale's title/description/mediaItem out of maeData.contentByLocale, defaulting to
- * empty content for a locale the editor hasn't touched yet (never written into state - see
+/** Read one locale's title/description out of maeData.contentByLocale, defaulting to empty
+ * content for a locale the editor hasn't touched yet (never written into state - see
  * applyPoiBodyConversion, which is what keeps an untouched locale from being saved as an empty
  * Strapi row).
  * @param {object} contentByLocale
  * @param {string} locale
- * @returns {{ title: string, description: string, mediaItem: (object|null|undefined) }}
+ * @returns {{ title: string, description: string }}
  */
 export const getLocaleContent = (contentByLocale, locale) => contentByLocale[locale] ?? EMPTY_LOCALE_CONTENT;
 
 /**
- * Groups a saved annotation body (one identifying + at most one describing TextualBody + at
- * most one describing MediaItem per language - see applyPoiBodyConversion) back into a
- * per-locale content map for a form to bind to. Shared by POITemplate and NestedMapTemplate -
- * both save/rehydrate the exact same title/description/media shape (issue #350: a nested-map
- * point "shares the same information as POI").
+ * Groups a saved annotation body (one identifying + at most one describing TextualBody per
+ * language - see applyPoiBodyConversion) back into a per-locale content map for a form to bind
+ * to. Shared by POITemplate and NestedMapTemplate - both save/rehydrate the exact same
+ * title/description shape (issue #350: a nested-map point "shares the same information as
+ * POI"). Media (`dbf:media`, issue #391) is not part of this - it's a root-level annotation
+ * extension, not tied to a language, same as `dbf:linkedMap` (see NestedMapTemplate).
  * @param {object[]} body
  * @returns {object} contentByLocale
  */
@@ -78,20 +67,9 @@ export const parseContentByLocale = (body) => {
   body.forEach((item) => {
     const locale = item.language;
     if (!locale) return;
-    // No `mediaItem` key here either, for the same reason as EMPTY_LOCALE_CONTENT above -
-    // only actually seeing a MediaItem body item (below) should add it.
     const content = contentByLocale[locale] ?? { description: '', title: '' };
     if (item.purpose === 'identifying') {
       content.title = item.value ?? '';
-    } else if (item.type === MEDIA_ITEM_BODY_TYPE) {
-      // item.id is null for an explicit "no media" clear (see applyPoiBodyConversion) -
-      // that must rehydrate back to `null`, not a `{ documentId: null }` object.
-      content.mediaItem = item.id ? {
-        documentId: item.id,
-        mediaType: item.mediaType ?? null,
-        thumbnailUrl: item.thumbnailUrl ?? null,
-        titleEn: item.title,
-      } : null;
     } else if (
       item.purpose === 'describing'
       && item.type === TEXTUAL_BODY_TYPE
@@ -130,26 +108,22 @@ export const isValidPointTarget = (maeData) => {
 
 /**
  * Build the saved `body` array from maeData.contentByLocale: one identifying + at most one
- * describing TextualBody + at most one describing MediaItem, per locale the editor actually
- * touched, each tagged `language` (root_repo#32 - StrapiAnnotationAdapter merges/splits these
- * per-locale server-side). A locale never written into contentByLocale (the editor never
- * switched to it, or switched but never typed anything) is simply absent from the saved body -
- * it is not re-saved as an empty translation.
+ * describing TextualBody, per locale the editor actually touched, each tagged `language`
+ * (root_repo#32 - StrapiAnnotationAdapter merges/splits these per-locale server-side). A locale
+ * never written into contentByLocale (the editor never switched to it, or switched but never
+ * typed anything) is simply absent from the saved body - it is not re-saved as an empty
+ * translation.
  *
- * A locale's MediaItem body item follows a stricter rule than title/description: it is emitted
- * only when that locale's content object actually HAS a `mediaItem` key (own-property check, not
- * a truthiness check) - added either by rehydrating an existing MediaItem body item, or by the
- * user touching MediaItemRelationField (attaching or explicitly clearing one). A locale whose
- * `mediaItem` key is absent - the editor never rendered/touched that field for it - emits nothing,
- * so the server leaves that language's mediaEn/mediaAr relation alone rather than reading silence
- * as "detach it". Only an explicit clear (key present, value null) tells the server to disconnect.
- *
- * Journey membership (dbf:journey) and cross-map linking (dbf:linkedMap) are deliberately NOT
- * read or written here: those are relations managed from the Strapi backoffice, not from the
+ * Media (`dbf:media`), journey membership (`dbf:journey`), and cross-map linking
+ * (`dbf:linkedMap`) are deliberately NOT read or written here: `dbf:media` is set directly on
+ * `state` by MediaSelectionField's onChange (see updateMedia in POITemplate/JourneyTemplate/
+ * NestedMapTemplate - issue #391, mirrors how NestedMapTemplate already threads `dbf:linkedMap`
+ * through), and journey/linkedMap are relations managed from the Strapi backoffice, not from the
  * annotation editor. `stateToSave` is the same object as `state` (mutated in place, matching
- * every other template's convention), so whatever dbf:journey/dbf:linkedMap the annotation
- * already carried when it was loaded survives untouched into the saved result - editing a POI's
- * title/description/target in MAE must never silently drop its existing relations.
+ * every other template's convention), so whatever dbf:media/dbf:journey/dbf:linkedMap the
+ * annotation already carried when it was loaded survives untouched into the saved result -
+ * editing a POI's title/description/target in MAE must never silently drop its existing
+ * relations.
  * @param {object} state
  * @returns {object} the same state, mutated
  */
@@ -159,7 +133,7 @@ export const applyPoiBodyConversion = (state) => {
 
   stateToSave.body = Object.entries(contentByLocale)
     .flatMap(([language, content]) => {
-      const { description, title, mediaItem } = content;
+      const { description, title } = content;
       return [
         {
           language,
@@ -170,15 +144,6 @@ export const applyPoiBodyConversion = (state) => {
         ...(isEmptyValue(description) ? [] : [{
           language, purpose: 'describing', type: TEXTUAL_BODY_TYPE, value: description,
         }]),
-        ...('mediaItem' in content
-          ? [{
-            id: mediaItem?.documentId ?? null,
-            language,
-            purpose: 'describing',
-            title: mediaItem?.titleEn ?? null,
-            type: MEDIA_ITEM_BODY_TYPE,
-          }]
-          : []),
       ];
     });
 
@@ -212,7 +177,9 @@ export default function POITemplate(
     windowId,
   },
 ) {
-  const { contentLocales = [], searchMediaItems } = useSelector((state) => getConfig(state)).annotation ?? {};
+  const {
+    contentLocales = [], searchMediaItems, searchIiifImages, searchUploads,
+  } = useSelector((state) => getConfig(state)).annotation ?? {};
 
   let maeAnnotation = annotation;
 
@@ -220,6 +187,7 @@ export default function POITemplate(
     maeAnnotation = {
       body: [],
       'dbf:kind': 'POI',
+      'dbf:media': null,
       maeData: {
         contentByLocale: {},
         target: null,
@@ -242,8 +210,10 @@ export default function POITemplate(
     // parseContentByLocale's own doc for the "first describing item per locale wins" rule this
     // mirrors from annotationConversion.ts server-side).
     maeAnnotation.maeData.contentByLocale = parseContentByLocale(maeAnnotation.body);
-    // dbf:journey / dbf:linkedMap (if present) are intentionally left untouched on
-    // maeAnnotation itself - not read into maeData, since there is no UI here to edit them.
+    // dbf:media is read directly off maeAnnotation below (see `annotationState['dbf:media']`) -
+    // no rehydration needed here since it's not stored in the body. dbf:journey / dbf:linkedMap
+    // (if present) are intentionally left untouched on maeAnnotation itself - not read into
+    // maeData, since there is no UI here to edit them.
   }
 
   const [annotationState, setAnnotationState] = useState(maeAnnotation);
@@ -292,6 +262,16 @@ export default function POITemplate(
         ...annotationState.maeData.contentByLocale,
         [activeLocale]: { ...activeLocaleContent, ...patch },
       },
+    });
+  };
+
+  /** Update the attached media, or clear it (media is `null`) - a root-level annotation
+   * extension, not tied to a language (issue #391), same pattern as NestedMapTemplate's
+   * updateLinkedMap for `dbf:linkedMap`. */
+  const updateMedia = (media) => {
+    setAnnotationState({
+      ...annotationState,
+      'dbf:media': media,
     });
   };
 
@@ -361,15 +341,17 @@ export default function POITemplate(
           }}
         />
       </Grid>
-      {typeof searchMediaItems === 'function' && (
+      {(searchMediaItems || searchIiifImages || searchUploads) && (
         <Grid>
-          <MediaItemRelationField
+          <MediaSelectionField
             dialogContainer={dialogContainer}
-            label={t('poi_media_item')}
-            onChange={(mediaItem) => updateActiveLocaleContent({ mediaItem })}
-            onSearch={searchMediaItems}
+            label={t('poi_media')}
+            onChange={updateMedia}
+            onSearchIiifImages={searchIiifImages}
+            onSearchMediaItems={searchMediaItems}
+            onSearchUploads={searchUploads}
             t={t}
-            value={activeLocaleContent.mediaItem}
+            value={annotationState['dbf:media'] ?? null}
           />
         </Grid>
       )}

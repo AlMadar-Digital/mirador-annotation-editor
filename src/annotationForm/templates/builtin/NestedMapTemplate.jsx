@@ -15,7 +15,7 @@ import { TEMPLATE } from '../../AnnotationFormUtils';
 import { resizeKonvaStage } from '../../AnnotationFormOverlay/KonvaDrawing/KonvaUtils';
 import { finalizeSpatialTarget } from '../../../IIIFUtils';
 import { templateKit } from '../kit';
-import { MediaItemRelationField } from '../templateComponents/MediaItemRelationField';
+import { MediaSelectionField } from '../templateComponents/MediaSelectionField';
 import { MapRelationField } from '../templateComponents/MapRelationField';
 import { RichTextField } from '../templateComponents/RichTextField';
 import {
@@ -60,7 +60,7 @@ export default function NestedMapTemplate(
   },
 ) {
   const {
-    contentLocales = [], searchMediaItems, searchMaps,
+    contentLocales = [], searchMediaItems, searchMaps, searchIiifImages, searchUploads,
   } = useSelector((state) => getConfig(state)).annotation ?? {};
 
   let maeAnnotation = annotation;
@@ -70,6 +70,7 @@ export default function NestedMapTemplate(
       body: [],
       'dbf:kind': 'POI',
       'dbf:linkedMap': null,
+      'dbf:media': null,
       maeData: {
         contentByLocale: {},
         target: null,
@@ -142,6 +143,15 @@ export default function NestedMapTemplate(
     });
   };
 
+  /** Update the attached media, or clear it (media is `null`) - issue #391, same pattern as
+   * updateLinkedMap above. */
+  const updateMedia = (media) => {
+    setAnnotationState({
+      ...annotationState,
+      'dbf:media': media,
+    });
+  };
+
   /** Save function * */
   const saveFunction = async () => {
     const validTarget = isValidPointTarget(annotationState.maeData);
@@ -205,15 +215,17 @@ export default function NestedMapTemplate(
           }}
         />
       </Grid>
-      {typeof searchMediaItems === 'function' && (
+      {(searchMediaItems || searchIiifImages || searchUploads) && (
         <Grid>
-          <MediaItemRelationField
+          <MediaSelectionField
             dialogContainer={dialogContainer}
-            label={t('poi_media_item')}
-            onChange={(mediaItem) => updateActiveLocaleContent({ mediaItem })}
-            onSearch={searchMediaItems}
+            label={t('poi_media')}
+            onChange={updateMedia}
+            onSearchIiifImages={searchIiifImages}
+            onSearchMediaItems={searchMediaItems}
+            onSearchUploads={searchUploads}
             t={t}
-            value={activeLocaleContent.mediaItem}
+            value={annotationState['dbf:media'] ?? null}
           />
         </Grid>
       )}
