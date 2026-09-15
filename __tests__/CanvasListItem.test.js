@@ -111,6 +111,102 @@ describe('CanvasListItem', () => {
       .toBeInTheDocument();
   });
 
+  it('only shows preview for maps annotations (dbf:kind present), and opens the mapsPoiPreview companion window on click', async () => {
+    const addCompanionWindow = vi.fn();
+
+    createWrapper({}, {
+      addCompanionWindow,
+      annotationPreviewCompanionWindowIsOpened: true,
+      annotationsOnCanvases: {
+        'canv/1': {
+          'annoPage/1': {
+            json: {
+              items: [
+                {
+                  'dbf:kind': 'POI',
+                  id: 'anno/1',
+                  maeData: { someData: 'someValue' }
+                }
+              ]
+            }
+          }
+        }
+      },
+      canvases: [{ id: 'canv/1' }]
+    });
+
+    const li = screen.getByText('HelloWorld')
+      .closest('li');
+    await userEvent.hover(li);
+
+    const previewButton = screen.getByRole('button', { name: /preview/i });
+    expect(previewButton)
+      .toBeInTheDocument();
+    expect(previewButton)
+      .toBeEnabled();
+
+    await userEvent.click(previewButton);
+
+    expect(addCompanionWindow)
+      .toHaveBeenCalledWith('mapsPoiPreview', { annotationid: 'anno/1', position: 'right' });
+  });
+
+  it('disables preview while a preview companion window is already open', async () => {
+    createWrapper({}, {
+      annotationPreviewCompanionWindowIsOpened: false,
+      annotationsOnCanvases: {
+        'canv/1': {
+          'annoPage/1': {
+            json: {
+              items: [
+                {
+                  'dbf:kind': 'POI',
+                  id: 'anno/1',
+                  maeData: { someData: 'someValue' }
+                }
+              ]
+            }
+          }
+        }
+      },
+      canvases: [{ id: 'canv/1' }]
+    });
+
+    const li = screen.getByText('HelloWorld')
+      .closest('li');
+    await userEvent.hover(li);
+
+    expect(screen.getByRole('button', { name: /preview/i }))
+      .toBeDisabled();
+  });
+
+  it('does not show preview for a non-maps annotation (no dbf:kind)', async () => {
+    createWrapper({}, {
+      annotationsOnCanvases: {
+        'canv/1': {
+          'annoPage/1': {
+            json: {
+              items: [
+                {
+                  id: 'anno/1',
+                  maeData: { someData: 'someValue' }
+                }
+              ]
+            }
+          }
+        }
+      },
+      canvases: [{ id: 'canv/1' }]
+    });
+
+    const li = screen.getByText('HelloWorld')
+      .closest('li');
+    await userEvent.hover(li);
+
+    expect(screen.queryByRole('button', { name: /preview/i }))
+      .toBeNull();
+  });
+
   it('deletes via storageAdapter on delete click', async () => {
     createWrapper({}, {
       annotationEditCompanionWindowIsOpened: true,

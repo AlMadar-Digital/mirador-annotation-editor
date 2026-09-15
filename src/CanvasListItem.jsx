@@ -4,6 +4,7 @@ import React, {
 import PropTypes from 'prop-types';
 import DeleteIcon from '@mui/icons-material/DeleteForever';
 import EditIcon from '@mui/icons-material/Edit';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import ToggleButton from '@mui/material/ToggleButton';
 import SettingsIcon from '@mui/icons-material/Settings';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
@@ -80,6 +81,27 @@ const CanvasListItem = forwardRef((props, ref) => {
     const { annotationid } = props;
 
     addCompanionWindow('annotationCreation', {
+      annotationid,
+      position: 'right',
+    });
+  };
+  /**
+   * Opens a read-only preview of this annotation in a companion window (issue #375).
+   * Unlike 'annotationCreation', 'mapsPoiPreview' isn't a companion window type this
+   * package registers itself - it's the maps plugin's own (see platform's
+   * poiPreviewPlugin.tsx, registered into the same Mirador.viewer plugins array
+   * alongside this package's), rendering whatever it finds via the companion window's own
+   * `annotationid` prop rather than "whatever's currently selected".
+   * @function handlePreview
+   * @returns {void}
+   */
+  const handlePreview = () => {
+    const {
+      addCompanionWindow,
+    } = context;
+    const { annotationid } = props;
+
+    addCompanionWindow('mapsPoiPreview', {
       annotationid,
       position: 'right',
     });
@@ -167,6 +189,21 @@ const CanvasListItem = forwardRef((props, ref) => {
               <span>
                 <ToggleButton aria-label="Metadata" value="metadata">
                   <InfoIcon />
+                </ToggleButton>
+              </span>
+            </Tooltip>
+            )}
+
+            {!!annotationData?.['dbf:kind'] && (
+            <Tooltip title={t('previewAnnotation')}>
+              <span>
+                <ToggleButton
+                  aria-label="Preview"
+                  onClick={handlePreview}
+                  value="preview"
+                  disabled={!context.annotationPreviewCompanionWindowIsOpened}
+                >
+                  <VisibilityIcon />
                 </ToggleButton>
               </span>
             </Tooltip>

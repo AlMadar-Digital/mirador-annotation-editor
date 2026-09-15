@@ -84,6 +84,7 @@ export const ar = {
   poi_target_must_be_point: "انقر على الصورة لتحديد موقع نقطة الاهتمام هذه.",
   poi_title: "العنوان",
   polygon: "مضلع",
+  previewAnnotation: "معاينة",
   pressEnterOrClickFirstPointToClose: "انقر على النقطة الأولى أو اضغط \"Shift\" لإغلاق المضلع، أو \"Tab\" لتركه مفتوحًا",
   pressEnterToAddTag: "أضف الوسم واضغط \"Enter\"",
   pressEscapeToFinish: "اضغط \"Esc\" لإنهاء الخط",
