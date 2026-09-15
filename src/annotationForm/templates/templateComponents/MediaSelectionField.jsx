@@ -221,14 +221,6 @@ export function MediaSelectionField({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-      {value && (
-        <Box sx={{ alignItems: 'center', display: 'flex', gap: 1 }}>
-          <MediaSelectionThumbnail media={value} />
-          <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {value.title}
-          </Typography>
-        </Box>
-      )}
       {availableSources.length > 1 && (
         <ToggleButtonGroup
           value={activeSource}
@@ -286,6 +278,16 @@ export function MediaSelectionField({
         slotProps={{ popper: { container: dialogContainer } }}
         value={value && value.source === activeSource ? value : null}
       />
+      {value && (
+        // A small preview of the currently attached media, right under the field - lets staff
+        // confirm what's selected without leaving the editing companion window (issue #391).
+        <Box sx={{ alignItems: 'center', display: 'flex', gap: 1 }}>
+          <MediaSelectionThumbnail media={value} />
+          <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {value.title}
+          </Typography>
+        </Box>
+      )}
     </Box>
   );
 }
