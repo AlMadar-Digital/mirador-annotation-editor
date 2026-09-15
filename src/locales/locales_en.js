@@ -46,6 +46,7 @@ export const en = {
   journey_description: 'An ordered sequence of POIs, with a title and optional description',
   journey_description_placeholder: 'Describe this journey…',
   journey_description_section: 'Description',
+  journey_hint: 'Use the left annotation list to associate POIs to journey and order them',
   journey_language: 'Language',
   journey_media_item: 'Media item',
   journey_title: 'Title',

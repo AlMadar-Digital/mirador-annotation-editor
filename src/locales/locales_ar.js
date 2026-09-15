@@ -46,6 +46,7 @@ export const ar = {
   journey_description: "سلسلة مرتبة من نقاط الاهتمام، بعنوان ووصف اختياري",
   journey_description_placeholder: "صف هذا المسار…",
   journey_description_section: "الوصف",
+  journey_hint: 'Use the left annotation list to associate POIs to journey and order them',
   journey_language: "اللغة",
   journey_media_item: "عنصر الوسائط",
   journey_title: "العنوان",

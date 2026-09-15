@@ -220,6 +220,7 @@ export default function JourneyTemplate(
           value={activeLocaleContent.description}
         />
       </Grid>
+
       <Grid>
         <AnnotationFormFooter
           closeFormCompanionWindow={closeFormCompanionWindow}
@@ -228,6 +229,9 @@ export default function JourneyTemplate(
           t={t}
           annotationState={annotationState}
         />
+      </Grid>
+      <Grid>
+        <Typography variant="subFormSectionTitle">{t('journey_hint')}</Typography>
       </Grid>
     </Grid>
   );
