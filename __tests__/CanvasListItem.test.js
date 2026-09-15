@@ -116,6 +116,7 @@ describe('CanvasListItem', () => {
 
     createWrapper({}, {
       addCompanionWindow,
+      annotationPreviewCompanionWindowIsOpened: true,
       annotationsOnCanvases: {
         'canv/1': {
           'annoPage/1': {
@@ -141,11 +142,42 @@ describe('CanvasListItem', () => {
     const previewButton = screen.getByRole('button', { name: /preview/i });
     expect(previewButton)
       .toBeInTheDocument();
+    expect(previewButton)
+      .toBeEnabled();
 
     await userEvent.click(previewButton);
 
     expect(addCompanionWindow)
       .toHaveBeenCalledWith('mapsPoiPreview', { annotationid: 'anno/1', position: 'right' });
+  });
+
+  it('disables preview while a preview companion window is already open', async () => {
+    createWrapper({}, {
+      annotationPreviewCompanionWindowIsOpened: false,
+      annotationsOnCanvases: {
+        'canv/1': {
+          'annoPage/1': {
+            json: {
+              items: [
+                {
+                  'dbf:kind': 'POI',
+                  id: 'anno/1',
+                  maeData: { someData: 'someValue' }
+                }
+              ]
+            }
+          }
+        }
+      },
+      canvases: [{ id: 'canv/1' }]
+    });
+
+    const li = screen.getByText('HelloWorld')
+      .closest('li');
+    await userEvent.hover(li);
+
+    expect(screen.getByRole('button', { name: /preview/i }))
+      .toBeDisabled();
   });
 
   it('does not show preview for a non-maps annotation (no dbf:kind)', async () => {

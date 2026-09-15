@@ -52,6 +52,7 @@ function CanvasAnnotationsWrapper({
   updateWindow,
   windowViewType,
   annotationEditCompanionWindowIsOpened,
+  annotationPreviewCompanionWindowIsOpened,
 }) {
   const [singleCanvasDialogOpen, setSingleCanvasDialogOpen] = useState(false);
 
@@ -183,6 +184,7 @@ function CanvasAnnotationsWrapper({
   const contextValue = useMemo(() => ({
     addCompanionWindow,
     annotationEditCompanionWindowIsOpened,
+    annotationPreviewCompanionWindowIsOpened,
     annotationsOnCanvases,
     canvases,
     config,
@@ -195,6 +197,7 @@ function CanvasAnnotationsWrapper({
   }), [
     addCompanionWindow,
     annotationEditCompanionWindowIsOpened,
+    annotationPreviewCompanionWindowIsOpened,
     annotationsOnCanvases,
     canvases,
     config,
@@ -243,6 +246,7 @@ function CanvasAnnotationsWrapper({
 CanvasAnnotationsWrapper.propTypes = {
   addCompanionWindow: PropTypes.func.isRequired,
   annotationEditCompanionWindowIsOpened: PropTypes.bool.isRequired,
+  annotationPreviewCompanionWindowIsOpened: PropTypes.bool.isRequired,
   annotationsOnCanvases: PropTypes.shape({
     id: PropTypes.string,
     isFetching: PropTypes.bool,
@@ -299,6 +303,11 @@ function mapStateToProps(state, { targetProps: { windowId } }) {
   const annotationsOnCanvases = {};
   const creation = getCompanionWindowsForContent(state, { content: 'annotationCreation', windowId });
   const annotationEditCompanionWindowIsOpened = Object.keys(creation).length === 0;
+  // Mirrors the guard above, for the maps plugin's own 'mapsPoiPreview' companion window
+  // (issue #375) - keeps CanvasListItem's Preview button from stacking a new preview
+  // window per click the same way Edit/Delete already avoid stacking edit windows.
+  const preview = getCompanionWindowsForContent(state, { content: 'mapsPoiPreview', windowId });
+  const annotationPreviewCompanionWindowIsOpened = Object.keys(preview).length === 0;
 
   canvases.forEach((canvas) => {
     const anno = state.annotations[canvas.id];
@@ -311,6 +320,7 @@ function mapStateToProps(state, { targetProps: { windowId } }) {
   //  Perhaps a regression to remove it
   return {
     annotationEditCompanionWindowIsOpened,
+    annotationPreviewCompanionWindowIsOpened,
     annotationsOnCanvases,
     canvases,
     config: {

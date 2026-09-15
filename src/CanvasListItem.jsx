@@ -201,6 +201,7 @@ const CanvasListItem = forwardRef((props, ref) => {
                   aria-label="Preview"
                   onClick={handlePreview}
                   value="preview"
+                  disabled={!context.annotationPreviewCompanionWindowIsOpened}
                 >
                   <VisibilityIcon />
                 </ToggleButton>
