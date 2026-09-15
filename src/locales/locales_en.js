@@ -84,6 +84,7 @@ export const en = {
   poi_target_must_be_point: 'Click on the image to set this POI\'s location.',
   poi_title: 'Title',
   polygon: 'Polygon',
+  previewAnnotation: 'Preview',
   pressEnterOrClickFirstPointToClose: 'Click first point or press "Shift" to close polygon, "Tab" to leave open',
   pressEnterToAddTag: 'Add your tag and press "Enter"',
   pressEscapeToFinish: 'Press "Esc" to finish the line',

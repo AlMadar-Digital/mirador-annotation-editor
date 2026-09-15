@@ -84,6 +84,7 @@ export const fr = {
   poi_target_must_be_point: 'Cliquez sur l\'image pour définir la position de ce POI.',
   poi_title: 'Titre',
   polygon: 'Polygone',
+  previewAnnotation: 'Aperçu',
   pressEnterOrClickFirstPointToClose: 'Cliquez sur le premier point ou appuyez sur "Maj" pour fermer le polygone, "Tab" pour laisser ouvert',
   pressEnterToAddTag: 'Valider avec "Entrée"',
   pressEscapeToFinish: 'Appuyez sur "Échap" pour terminer la ligne',
