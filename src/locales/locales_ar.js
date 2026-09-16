@@ -26,6 +26,7 @@ export const ar = {
   deleteAnnotation: "حذف",
   detected_media_type: "تم اكتشاف نوع الوسائط {{mediaType}}.",
   document: "مستند",
+  drag_to_reorder: "اسحب لإعادة الترتيب",
   drawings_and_text_in_overlay: "رسومات ونص في الطبقة العلوية",
   edit: "تعديل",
   edit_annotation: "تعديل التعليق التوضيحي",

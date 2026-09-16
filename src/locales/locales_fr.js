@@ -26,6 +26,7 @@ export const fr = {
   delete_all: 'Tout supprimer',
   detected_media_type: 'Nous détectons un média de type {{mediaType}}.',
   document: 'Document',
+  drag_to_reorder: 'Glisser pour réordonner',
   drawings_and_text_in_overlay: 'Dessins et texte en superposition',
   edit: 'Éditer',
   edit_annotation: 'Editer l\'annotation',

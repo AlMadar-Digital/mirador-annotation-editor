@@ -5,6 +5,8 @@ import PropTypes from 'prop-types';
 import { ReactSortable } from 'react-sortablejs';
 import { useTranslation } from 'react-i18next';
 import Typography from '@mui/material/Typography';
+import Tooltip from '@mui/material/Tooltip';
+import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import CanvasListItem from './CanvasListItem';
 import {
   annotationTitle, groupAnnotationItems, withJourneyOrder, withTopLevelOrder,
@@ -246,12 +248,21 @@ export default function SortableCanvasAnnotationsList({
         onMouseEnter={() => hoverAnnotation(windowId, [item.id])}
         onMouseLeave={() => hoverAnnotation(windowId, [])}
         style={{
+          alignItems: 'center',
           backgroundColor: isHighlighted ? 'rgba(0, 0, 0, 0.04)' : undefined,
           cursor: 'pointer',
+          display: 'flex',
+          gap: 4,
           listStyle: 'none',
           padding: '8px 16px',
         }}
       >
+        <Tooltip title={t('drag_to_reorder')}>
+          <DragIndicatorIcon
+            fontSize="small"
+            sx={{ color: 'action.active', cursor: 'grab', flexShrink: 0 }}
+          />
+        </Tooltip>
         <Typography variant="body2">{title}</Typography>
       </CanvasListItem>
     );

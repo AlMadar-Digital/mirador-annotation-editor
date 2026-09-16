@@ -26,6 +26,7 @@ export const en = {
   deleteAnnotation: 'Delete',
   detected_media_type: 'We detect {{mediaType}} media type.',
   document: 'Document',
+  drag_to_reorder: 'Drag to reorder',
   drawings_and_text_in_overlay: 'Drawings and text in overlay',
   edit: 'Edit',
   edit_annotation: 'Edit annotation',
