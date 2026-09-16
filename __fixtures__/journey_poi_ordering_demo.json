@@ -149,6 +149,17 @@
       "body": [
         { "language": "en", "purpose": "identifying", "type": "TextualBody", "value": "Tied POI A (edge case: journey order 0, tie-break by id vs. Tied POI B)" }
       ]
+    },
+    {
+      "id": "https://example.org/mae-fixtures/journey-empty",
+      "type": "Annotation",
+      "motivation": "identifying",
+      "dbf:kind": "Journey",
+      "dbf:order": 3,
+      "target": "https://resources.mirador-multi-user.com/f676f10ea711a0a00f14cce0667aec5e1458b5ff/Map-of-the-Nile-River-and-surrounding-areas.json/1786874554449/canvas/1786874554449",
+      "body": [
+        { "language": "en", "purpose": "identifying", "type": "TextualBody", "value": "Empty Journey (edge case: no pois yet - exercises the \"drag POI here\" drop zone)" }
+      ]
     }
   ]
 }
