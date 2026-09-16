@@ -245,4 +245,96 @@ describe('CanvasListItem', () => {
     expect(storageAdapter)
       .toHaveBeenCalledWith('canv/1');
   });
+
+  describe('move to journey (issue #377)', () => {
+    /** A context with one editable (maeData-bearing) poi, ready for the tests below to add
+     * their own journeys/currentJourneyId/onMoveToJourney props on top of. */
+    const editableContext = () => ({
+      annotationEditCompanionWindowIsOpened: true,
+      annotationsOnCanvases: {
+        'canv/1': {
+          'annoPage/1': {
+            json: {
+              items: [
+                {
+                  id: 'anno/1',
+                  maeData: { someData: 'someValue' },
+                },
+              ],
+            },
+          },
+        },
+      },
+      canvases: [{ id: 'canv/1' }],
+    });
+
+    it('does not show the button when no journeys prop is passed (e.g. a Journey row)', async () => {
+      createWrapper({}, editableContext());
+
+      const li = screen.getByText('HelloWorld').closest('li');
+      await userEvent.hover(li);
+
+      expect(screen.queryByRole('button', { name: /move to journey/i }))
+        .toBeNull();
+    });
+
+    it('does not show the button when there are no journeys and the poi has none either', async () => {
+      createWrapper({ journeys: [] }, editableContext());
+
+      const li = screen.getByText('HelloWorld').closest('li');
+      await userEvent.hover(li);
+
+      expect(screen.queryByRole('button', { name: /move to journey/i }))
+        .toBeNull();
+    });
+
+    it('lists every journey and assigns the poi to the one picked', async () => {
+      const onMoveToJourney = vi.fn();
+      createWrapper({
+        journeys: [
+          { id: 'journey/a', title: 'Journey A' },
+          { id: 'journey/b', title: 'Journey B' },
+        ],
+        onMoveToJourney,
+      }, editableContext());
+
+      const li = screen.getByText('HelloWorld').closest('li');
+      await userEvent.hover(li);
+
+      const moveButton = screen.getByRole('button', { name: /move to journey/i });
+      await userEvent.click(moveButton);
+
+      expect(screen.getByRole('menuitem', { name: 'Journey A' }))
+        .toBeInTheDocument();
+      expect(screen.getByRole('menuitem', { name: 'Journey B' }))
+        .toBeInTheDocument();
+      // Not already in a journey - no "remove from journey" option to offer.
+      expect(screen.queryByRole('menuitem', { name: /remove_from_journey/i }))
+        .toBeNull();
+
+      await userEvent.click(screen.getByRole('menuitem', { name: 'Journey B' }));
+
+      expect(onMoveToJourney)
+        .toHaveBeenCalledWith('journey/b');
+    });
+
+    it('offers "remove from journey" when the poi already belongs to one, calling back with null', async () => {
+      const onMoveToJourney = vi.fn();
+      createWrapper({
+        currentJourneyId: 'journey/a',
+        journeys: [{ id: 'journey/a', title: 'Journey A' }],
+        onMoveToJourney,
+      }, editableContext());
+
+      const li = screen.getByText('HelloWorld').closest('li');
+      await userEvent.hover(li);
+
+      await userEvent.click(screen.getByRole('button', { name: /move to journey/i }));
+
+      await userEvent.click(screen.getByRole('menuitem', { name: /remove_from_journey/i }));
+
+      expect(onMoveToJourney)
+        .toHaveBeenCalledWith(null);
+    });
+  });
 });

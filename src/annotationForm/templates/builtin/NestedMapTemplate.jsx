@@ -15,7 +15,6 @@ import { TEMPLATE } from '../../AnnotationFormUtils';
 import { resizeKonvaStage } from '../../AnnotationFormOverlay/KonvaDrawing/KonvaUtils';
 import { finalizeSpatialTarget } from '../../../IIIFUtils';
 import { templateKit } from '../kit';
-import { LocalizedMediaSelectionField } from '../templateComponents/LocalizedMediaSelectionField';
 import { MapRelationField } from '../templateComponents/MapRelationField';
 import { RichTextField } from '../templateComponents/RichTextField';
 import {
@@ -60,7 +59,7 @@ export default function NestedMapTemplate(
   },
 ) {
   const {
-    contentLocales = [], searchMediaItems, searchMaps, searchIiifImages, searchUploads,
+    contentLocales = [], searchMaps,
   } = useSelector((state) => getConfig(state)).annotation ?? {};
 
   let maeAnnotation = annotation;
@@ -144,24 +143,6 @@ export default function NestedMapTemplate(
     });
   };
 
-  /** Update the attached English/Arabic media, or clear it (media is `null`) - issue #377, same
-   * pattern as updateLinkedMap above. Uses the functional setState form - see POITemplate's
-   * matching updateMediaEn/updateMediaAr comment for why. */
-  const updateMediaEn = (media) => {
-    setAnnotationState((prev) => ({
-      ...prev,
-      'dbf:mediaEn': media,
-    }));
-  };
-
-  /** Update the attached Arabic media - see updateMediaEn's own doc. */
-  const updateMediaAr = (media) => {
-    setAnnotationState((prev) => ({
-      ...prev,
-      'dbf:mediaAr': media,
-    }));
-  };
-
   /** Save function * */
   const saveFunction = async () => {
     const validTarget = isValidPointTarget(annotationState.maeData);
@@ -225,39 +206,6 @@ export default function NestedMapTemplate(
           }}
         />
       </Grid>
-      {(searchMediaItems || searchIiifImages || searchUploads) && (
-        <Grid>
-          <LocalizedMediaSelectionField
-            dialogContainer={dialogContainer}
-            keepSameLabel={t('poi_media_keep_same')}
-            labelAr={t('poi_media_ar')}
-            labelEn={t('poi_media_en')}
-            mediaAr={annotationState['dbf:mediaAr'] ?? null}
-            mediaEn={annotationState['dbf:mediaEn'] ?? null}
-            onChangeAr={updateMediaAr}
-            onChangeEn={updateMediaEn}
-            onSearchIiifImages={searchIiifImages}
-            onSearchMediaItems={searchMediaItems}
-            onSearchUploads={searchUploads}
-            t={t}
-          />
-        </Grid>
-      )}
-      <Grid>
-        <Typography variant="formSectionTitle">{t('poi_description_section')}</Typography>
-      </Grid>
-      <Grid>
-        <RichTextField
-          // Remount per locale switch - see the matching comment on POITemplate's
-          // RichTextField for why relying on ckeditor5-react's controlled `data` sync
-          // silently wipes the previous locale's just-edited description.
-          key={activeLocale}
-          onChange={(html) => updateActiveLocaleContent({ description: html })}
-          placeholder={t('poi_description_placeholder')}
-          rtl={activeLocaleIsRtl}
-          value={activeLocaleContent.description}
-        />
-      </Grid>
       <Grid>
         <Typography variant="formSectionTitle">{t('nested_map_linked_map')}</Typography>
       </Grid>
@@ -278,6 +226,21 @@ export default function NestedMapTemplate(
           )}
         </Grid>
       )}
+      <Grid>
+        <Typography variant="formSectionTitle">{t('poi_description_section')}</Typography>
+      </Grid>
+      <Grid>
+        <RichTextField
+          // Remount per locale switch - see the matching comment on POITemplate's
+          // RichTextField for why relying on ckeditor5-react's controlled `data` sync
+          // silently wipes the previous locale's just-edited description.
+          key={activeLocale}
+          onChange={(html) => updateActiveLocaleContent({ description: html })}
+          placeholder={t('poi_description_placeholder')}
+          rtl={activeLocaleIsRtl}
+          value={activeLocaleContent.description}
+        />
+      </Grid>
       <Grid>
         <TargetFormSection
           onChangeTarget={updateTargetState}

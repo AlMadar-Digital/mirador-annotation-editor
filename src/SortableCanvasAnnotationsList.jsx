@@ -9,6 +9,16 @@ import CanvasListItem from './CanvasListItem';
 import {
   annotationTitle, groupAnnotationItems, withJourneyOrder, withTopLevelOrder,
 } from './annotationListGrouping';
+import { TEMPLATE } from './annotationForm/AnnotationFormUtils';
+import { TEMPLATE_REGISTRY } from './annotationForm/templates/registry';
+
+/** Maps a raw annotation item back to its template registry id (issue #377), mirroring
+ * IIIFUtils.js's own dbf:kind/dbf:linkedMap routing - the only two things this list needs to
+ * pick the right template icon for a row. */
+const templateTypeForItem = (item) => {
+  if (item['dbf:kind'] === 'Journey') return TEMPLATE.JOURNEY_TYPE;
+  return item['dbf:linkedMap'] ? TEMPLATE.NESTED_MAP_TYPE : TEMPLATE.POI_TYPE;
+};
 
 // Shared by the top-level list and every journey's nested list so a poi can be dragged between
 // them. Module-level (not recreated on every render): react-sortablejs only re-reads its option
@@ -148,6 +158,15 @@ export default function SortableCanvasAnnotationsList({
 }) {
   const { i18n, t } = useTranslation();
 
+  // Built once per render rather than re-derived per row via getTemplateType (which rebuilds
+  // this same array internally) - external templates never carry dbf:kind Journey/POI, so the
+  // built-in-only registry (no externalTemplates arg) always has the entry a row needs.
+  const templateEntriesById = useMemo(() => {
+    const map = new Map();
+    TEMPLATE_REGISTRY(t).forEach((entry) => map.set(entry.id, entry));
+    return map;
+  }, [t]);
+
   const canonicalGrouped = useMemo(() => groupAnnotationItems(items), [items]);
   const canonicalTopLevel = useMemo(
     () => canonicalGrouped.map((entry) => entry.item),
@@ -232,27 +251,70 @@ export default function SortableCanvasAnnotationsList({
     }
   }, [windowId, deselectAnnotation, selectAnnotation, selectedAnnotationId]);
 
+  // The "move to journey" menu's own options (issue #377) - a non-drag alternative to
+  // reparenting a poi into a journey, added after dragging into an empty journey's nested list
+  // repeatedly proved unreliable. Every journey on this canvas, regardless of how many pois it
+  // currently has.
+  const journeys = useMemo(() => canonicalGrouped
+    .filter((entry) => entry.kind === 'Journey')
+    .map((entry) => ({
+      id: entry.id,
+      title: annotationTitle(entry.item, i18n.language) || '—',
+    })), [canonicalGrouped, i18n.language]);
+
+  /** Assigns `item` to `journeyId` (appended at the end of that journey's own list), or - when
+   * `journeyId` is null - detaches it back to a standalone top-level poi. Unlike a drag, this
+   * only ever touches the ONE moved poi's own dbf:journey/dbf:order - every other item's
+   * position is already valid and needs no rewriting. */
+  const handleMoveToJourney = useCallback((item, journeyId) => {
+    const updated = journeyId
+      ? withJourneyOrder(item, journeyId, (poisByJourneyId.get(journeyId) ?? []).length)
+      : withTopLevelOrder(item, localTopLevel.length);
+    persist(updated);
+  }, [poisByJourneyId, persist, localTopLevel.length]);
+
   /** Renders one row (a journey, a standalone poi, or a poi nested under a journey). */
   const renderRow = (item) => {
     const title = annotationTitle(item, i18n.language) || '—';
     const isHighlighted = hoveredAnnotationIds.includes(item.id)
       || selectedAnnotationId === item.id;
+    const isJourney = item['dbf:kind'] === 'Journey';
+    const templateIcon = templateEntriesById.get(templateTypeForItem(item))?.icon;
+    let backgroundColor;
+    if (isHighlighted) {
+      backgroundColor = 'rgba(0, 0, 0, 0.04)';
+    } else if (isJourney) {
+      backgroundColor = 'rgba(0, 0, 0, 0.02)';
+    }
     return (
       <CanvasListItem
         annotationid={item.id}
+        currentJourneyId={isJourney ? undefined : (item['dbf:journey']?.id ?? null)}
         data-kind={item['dbf:kind']}
+        journeys={isJourney ? undefined : journeys}
         key={item.id}
         onClick={() => handleSelect(item.id)}
+        onMoveToJourney={
+          isJourney ? undefined : (journeyId) => handleMoveToJourney(item, journeyId)
+        }
         onMouseEnter={() => hoverAnnotation(windowId, [item.id])}
         onMouseLeave={() => hoverAnnotation(windowId, [])}
         style={{
-          backgroundColor: isHighlighted ? 'rgba(0, 0, 0, 0.04)' : undefined,
+          alignItems: 'center',
+          backgroundColor,
           cursor: 'pointer',
+          display: 'flex',
+          gap: 8,
           listStyle: 'none',
           padding: '8px 16px',
         }}
       >
-        <Typography variant="body2">{title}</Typography>
+        {templateIcon && (
+          <span style={{ display: 'inline-flex', flexShrink: 0 }}>
+            {templateIcon}
+          </span>
+        )}
+        <Typography variant={isJourney ? 'subtitle2' : 'body2'}>{title}</Typography>
       </CanvasListItem>
     );
   };
