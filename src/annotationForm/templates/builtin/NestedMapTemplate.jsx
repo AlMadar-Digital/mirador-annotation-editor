@@ -234,6 +234,10 @@ export default function NestedMapTemplate(
       </Grid>
       <Grid>
         <RichTextField
+          // Remount per locale switch - see the matching comment on POITemplate's
+          // RichTextField for why relying on ckeditor5-react's controlled `data` sync
+          // silently wipes the previous locale's just-edited description.
+          key={activeLocale}
           onChange={(html) => updateActiveLocaleContent({ description: html })}
           placeholder={t('poi_description_placeholder')}
           rtl={activeLocaleIsRtl}

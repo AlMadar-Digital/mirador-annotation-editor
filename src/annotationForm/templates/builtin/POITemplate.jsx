@@ -360,6 +360,15 @@ export default function POITemplate(
       </Grid>
       <Grid>
         <RichTextField
+          // Remounts on every locale switch instead of relying on ckeditor5-react's
+          // controlled `data` prop sync: that sync runs `editor.data.set()` synchronously
+          // inside React's shouldComponentUpdate, before `this.props` has been reassigned
+          // to the new render's props, so the resulting 'change:data' event fires the OLD
+          // render's onChange (still closed over the locale being switched AWAY from) with
+          // the NEW locale's content - silently overwriting the description just edited in
+          // the previous locale with whatever the next locale already had (often empty).
+          // A fresh instance per locale sidesteps that stale-closure write entirely.
+          key={activeLocale}
           onChange={(html) => updateActiveLocaleContent({ description: html })}
           placeholder={t('poi_description_placeholder')}
           rtl={activeLocaleIsRtl}
