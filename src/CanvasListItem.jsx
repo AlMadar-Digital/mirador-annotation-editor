@@ -10,9 +10,13 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import flatten from 'lodash/flatten';
 import { Tooltip } from '@mui/material';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
+import Divider from '@mui/material/Divider';
 import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import InfoIcon from '@mui/icons-material/Info';
+import RouteIcon from '@mui/icons-material/Route';
 import AnnotationActionsContext from './AnnotationActionsContext';
 import WhoAndWhenFormSection, { TOOLTIP_MODE } from './annotationForm/WhoAndWhenFormSection';
 import HotkeyTooltip from "./hotkeys/HotkeyTooltip";
@@ -21,7 +25,16 @@ import HotkeyTooltip from "./hotkeys/HotkeyTooltip";
 const CanvasListItem = forwardRef((props, ref) => {
   const theme = useTheme();
   const [isHovering, setIsHovering] = useState(false);
+  const [journeyMenuAnchor, setJourneyMenuAnchor] = useState(null);
   const context = useContext(AnnotationActionsContext);
+  // Maps-only (issue #377): a poi row's own list of assignable journeys, its current journey
+  // (if any) and the callback to reassign it - undefined for every other annotation kind this
+  // generic list-item wrapper renders (tagging/notes/expert-mode), so the button below never
+  // shows for those. Pulled out before the `{...restProps}` spread onto the raw <li> further
+  // down - passing a function/array prop straight through would produce an invalid DOM attribute.
+  const {
+    currentJourneyId, journeys, onMoveToJourney, ...restProps
+  } = props;
 
   const annotationData = useMemo(() => {
     const { annotationid } = props;
@@ -134,6 +147,20 @@ const CanvasListItem = forwardRef((props, ref) => {
       .includes(annotationid);
   };
 
+  /** Opens the "move to journey" menu, anchored to the button that triggered it. */
+  const handleOpenJourneyMenu = (event) => {
+    setJourneyMenuAnchor(event.currentTarget);
+  };
+  /** Closes the "move to journey" menu. */
+  const handleCloseJourneyMenu = () => setJourneyMenuAnchor(null);
+  /** Assigns this poi to `journeyId`, or detaches it (back to a standalone top-level poi)
+   * when `journeyId` is null - issue #377, a non-drag alternative to reparenting a poi into a
+   * journey, since dragging into an empty journey's own nested list proved unreliable. */
+  const handleSelectJourney = (journeyId) => {
+    onMoveToJourney?.(journeyId);
+    handleCloseJourneyMenu();
+  };
+
   // TODO perhaps M4 regression with props
   const { t } = useTranslation();
 
@@ -209,6 +236,22 @@ const CanvasListItem = forwardRef((props, ref) => {
             </Tooltip>
             )}
 
+            {context.config?.annotation?.readonly !== true
+              && !!journeys && (journeys.length > 0 || !!currentJourneyId) && (
+              <Tooltip title={t('move_to_journey')}>
+                <span>
+                  <ToggleButton
+                    aria-label="Move to journey"
+                    onClick={handleOpenJourneyMenu}
+                    value="move-to-journey"
+                    disabled={!context.annotationEditCompanionWindowIsOpened}
+                  >
+                    <RouteIcon />
+                  </ToggleButton>
+                </span>
+              </Tooltip>
+            )}
+
             {context.config?.annotation?.readonly !== true && [
               <Tooltip
                 title={t('edit_annotation')}
@@ -243,8 +286,31 @@ const CanvasListItem = forwardRef((props, ref) => {
         </div>
 
       )}
+      {!!journeys && (
+        <Menu
+          anchorEl={journeyMenuAnchor}
+          onClose={handleCloseJourneyMenu}
+          open={!!journeyMenuAnchor}
+        >
+          {!!currentJourneyId && [
+            <MenuItem key="none" onClick={() => handleSelectJourney(null)}>
+              {t('remove_from_journey')}
+            </MenuItem>,
+            <Divider key="divider" />,
+          ]}
+          {journeys.map((journey) => (
+            <MenuItem
+              key={journey.id}
+              onClick={() => handleSelectJourney(journey.id)}
+              selected={journey.id === currentJourneyId}
+            >
+              {journey.title}
+            </MenuItem>
+          ))}
+        </Menu>
+      )}
       {/* eslint-disable-next-line react/jsx-props-no-spreading */}
-      <li {...props}>
+      <li {...restProps}>
         {props.children}
       </li>
     </div>
@@ -255,6 +321,18 @@ CanvasListItem.propTypes = {
   annotationEditCompanionWindowIsOpened: PropTypes.bool.isRequired,
   annotationid: PropTypes.string.isRequired,
   children: PropTypes.oneOfType([PropTypes.func, PropTypes.node]).isRequired,
+  currentJourneyId: PropTypes.string,
+  journeys: PropTypes.arrayOf(PropTypes.shape({
+    id: PropTypes.string.isRequired,
+    title: PropTypes.string.isRequired,
+  })),
+  onMoveToJourney: PropTypes.func,
+};
+
+CanvasListItem.defaultProps = {
+  currentJourneyId: null,
+  journeys: undefined,
+  onMoveToJourney: undefined,
 };
 
 export default CanvasListItem;

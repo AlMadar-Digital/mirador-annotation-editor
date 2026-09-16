@@ -251,6 +251,28 @@ export default function SortableCanvasAnnotationsList({
     }
   }, [windowId, deselectAnnotation, selectAnnotation, selectedAnnotationId]);
 
+  // The "move to journey" menu's own options (issue #377) - a non-drag alternative to
+  // reparenting a poi into a journey, added after dragging into an empty journey's nested list
+  // repeatedly proved unreliable. Every journey on this canvas, regardless of how many pois it
+  // currently has.
+  const journeys = useMemo(() => canonicalGrouped
+    .filter((entry) => entry.kind === 'Journey')
+    .map((entry) => ({
+      id: entry.id,
+      title: annotationTitle(entry.item, i18n.language) || '—',
+    })), [canonicalGrouped, i18n.language]);
+
+  /** Assigns `item` to `journeyId` (appended at the end of that journey's own list), or - when
+   * `journeyId` is null - detaches it back to a standalone top-level poi. Unlike a drag, this
+   * only ever touches the ONE moved poi's own dbf:journey/dbf:order - every other item's
+   * position is already valid and needs no rewriting. */
+  const handleMoveToJourney = useCallback((item, journeyId) => {
+    const updated = journeyId
+      ? withJourneyOrder(item, journeyId, (poisByJourneyId.get(journeyId) ?? []).length)
+      : withTopLevelOrder(item, localTopLevel.length);
+    persist(updated);
+  }, [poisByJourneyId, persist, localTopLevel.length]);
+
   /** Renders one row (a journey, a standalone poi, or a poi nested under a journey). */
   const renderRow = (item) => {
     const title = annotationTitle(item, i18n.language) || '—';
@@ -267,9 +289,14 @@ export default function SortableCanvasAnnotationsList({
     return (
       <CanvasListItem
         annotationid={item.id}
+        currentJourneyId={isJourney ? undefined : (item['dbf:journey']?.id ?? null)}
         data-kind={item['dbf:kind']}
+        journeys={isJourney ? undefined : journeys}
         key={item.id}
         onClick={() => handleSelect(item.id)}
+        onMoveToJourney={
+          isJourney ? undefined : (journeyId) => handleMoveToJourney(item, journeyId)
+        }
         onMouseEnter={() => hoverAnnotation(windowId, [item.id])}
         onMouseLeave={() => hoverAnnotation(windowId, [])}
         style={{
