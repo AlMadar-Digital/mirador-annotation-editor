@@ -69,7 +69,8 @@ export default function NestedMapTemplate(
       body: [],
       'dbf:kind': 'POI',
       'dbf:linkedMap': null,
-      'dbf:media': null,
+      'dbf:mediaAr': null,
+      'dbf:mediaEn': null,
       maeData: {
         contentByLocale: {},
         target: null,

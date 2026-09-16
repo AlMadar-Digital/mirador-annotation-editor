@@ -13,7 +13,7 @@ import { useSelector } from 'react-redux';
 import { getConfig } from 'dbf-mirador';
 import { TEMPLATE } from '../../AnnotationFormUtils';
 import { templateKit } from '../kit';
-import { MediaSelectionField } from '../templateComponents/MediaSelectionField';
+import { LocalizedMediaSelectionField } from '../templateComponents/LocalizedMediaSelectionField';
 import { RichTextField } from '../templateComponents/RichTextField';
 import { applyPoiBodyConversion, parseContentByLocale } from './POITemplate';
 
@@ -69,7 +69,8 @@ export default function JourneyTemplate(
     maeAnnotation = {
       body: [],
       'dbf:kind': 'Journey',
-      'dbf:media': null,
+      'dbf:mediaAr': null,
+      'dbf:mediaEn': null,
       maeData: {
         contentByLocale: {},
         target: {},
@@ -80,9 +81,9 @@ export default function JourneyTemplate(
     };
   } else {
     // Rebuild contentByLocale from the saved body - reuses POITemplate's own rehydration (see
-    // its own doc for the "first describing item per locale wins" rule). dbf:media (issue #391)
-    // is read directly off maeAnnotation below, not part of this per-locale map - it's a
-    // root-level annotation extension, not tied to a language.
+    // its own doc for the "first describing item per locale wins" rule). dbf:mediaEn/dbf:mediaAr
+    // (issue #377) are read directly off maeAnnotation below, not part of this per-locale map -
+    // each is its own root-level annotation extension.
     maeAnnotation.maeData.contentByLocale = parseContentByLocale(maeAnnotation.body);
   }
 
@@ -123,14 +124,23 @@ export default function JourneyTemplate(
     });
   };
 
-  /** Update the attached media, or clear it (media is `null`) - a root-level annotation
-   * extension, not tied to a language (issue #391), same pattern as NestedMapTemplate's
-   * updateLinkedMap for `dbf:linkedMap`. */
-  const updateMedia = (media) => {
-    setAnnotationState({
-      ...annotationState,
-      'dbf:media': media,
-    });
+  /** Update the attached English/Arabic media, or clear it (media is `null`) - each is its own
+   * root-level annotation extension (issue #377), same pattern as NestedMapTemplate's
+   * updateLinkedMap for `dbf:linkedMap`. Uses the functional setState form - see POITemplate's
+   * matching updateMediaEn/updateMediaAr comment for why. */
+  const updateMediaEn = (media) => {
+    setAnnotationState((prev) => ({
+      ...prev,
+      'dbf:mediaEn': media,
+    }));
+  };
+
+  /** Update the attached Arabic media - see updateMediaEn's own doc. */
+  const updateMediaAr = (media) => {
+    setAnnotationState((prev) => ({
+      ...prev,
+      'dbf:mediaAr': media,
+    }));
   };
 
   /** Save function * */
@@ -185,15 +195,19 @@ export default function JourneyTemplate(
       </Grid>
       {(searchMediaItems || searchIiifImages || searchUploads) && (
         <Grid>
-          <MediaSelectionField
+          <LocalizedMediaSelectionField
             dialogContainer={dialogContainer}
-            label={t('journey_media')}
-            onChange={updateMedia}
+            keepSameLabel={t('journey_media_keep_same')}
+            labelAr={t('journey_media_ar')}
+            labelEn={t('journey_media_en')}
+            mediaAr={annotationState['dbf:mediaAr'] ?? null}
+            mediaEn={annotationState['dbf:mediaEn'] ?? null}
+            onChangeAr={updateMediaAr}
+            onChangeEn={updateMediaEn}
             onSearchIiifImages={searchIiifImages}
             onSearchMediaItems={searchMediaItems}
             onSearchUploads={searchUploads}
             t={t}
-            value={annotationState['dbf:media'] ?? null}
           />
         </Grid>
       )}
