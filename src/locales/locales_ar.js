@@ -78,6 +78,7 @@ export const ar = {
   poi_description: "نقطة اهتمام لها موقع ووصف وروابط اختيارية",
   poi_description_placeholder: "صف نقطة الاهتمام هذه…",
   poi_description_section: "الوصف",
+  poi_drop_placeholder: "اسحب نقطة اهتمام هنا",
   poi_language: "اللغة",
   poi_media: "الوسائط",
   poi_media_no_results: "لا توجد نتائج مطابقة",

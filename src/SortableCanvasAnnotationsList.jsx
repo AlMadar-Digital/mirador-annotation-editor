@@ -9,6 +9,16 @@ import CanvasListItem from './CanvasListItem';
 import {
   annotationTitle, groupAnnotationItems, withJourneyOrder, withTopLevelOrder,
 } from './annotationListGrouping';
+import { TEMPLATE } from './annotationForm/AnnotationFormUtils';
+import { TEMPLATE_REGISTRY } from './annotationForm/templates/registry';
+
+/** Maps a raw annotation item back to its template registry id (issue #377), mirroring
+ * IIIFUtils.js's own dbf:kind/dbf:linkedMap routing - the only two things this list needs to
+ * pick the right template icon for a row. */
+const templateTypeForItem = (item) => {
+  if (item['dbf:kind'] === 'Journey') return TEMPLATE.JOURNEY_TYPE;
+  return item['dbf:linkedMap'] ? TEMPLATE.NESTED_MAP_TYPE : TEMPLATE.POI_TYPE;
+};
 
 // Shared by the top-level list and every journey's nested list so a poi can be dragged between
 // them. Module-level (not recreated on every render): react-sortablejs only re-reads its option
@@ -29,7 +39,7 @@ const JOURNEY_GROUP = {
  * (redux-derived) poi list; `persist` is the shared, stateless save callback.
  */
 function JourneyPoiList({
-  journeyId, persist, pois, renderRow,
+  journeyId, persist, pois, renderRow, t,
 }) {
   const isDraggingRef = useRef(false);
   // A drop fires one persist() per item in this list (see handleSetList below), each a
@@ -73,24 +83,59 @@ function JourneyPoiList({
     });
   }, [journeyId, persist]);
 
+  // A journey with no pois yet rendered a literally childless <ul> - real in the DOM, but with
+  // no height/border/content, indistinguishable from nothing being there and far too small a
+  // drop target (sortablejs's own emptyInsertThreshold pads its collapsed, near-zero-height
+  // rect by only 5px - see Sortable.js's _detectNearestEmptySortable). Stacking a real-sized
+  // placeholder in the same grid cell (rather than adding a DOM child to the <ul> itself) fixes
+  // both without disturbing sortablejs's "this list has zero children" empty-list detection,
+  // which stops working the moment the <ul> gains any child node of its own (issue #377).
+  const isEmpty = localPois.length === 0;
+
   return (
-    <ReactSortable
-      animation={150}
-      forceFallback
-      group={JOURNEY_GROUP}
-      list={localPois}
-      onEnd={handleDragEnd}
-      onStart={handleDragStart}
-      setList={handleSetList}
-      tag="ul"
-      style={{ listStyle: 'none', margin: 0, paddingInlineStart: 24 }}
-    >
-      {localPois.map((poi) => (
-        <li key={poi.id} style={{ listStyle: 'none' }} data-kind="POI">
-          {renderRow(poi)}
-        </li>
-      ))}
-    </ReactSortable>
+    <div style={{ display: 'grid' }}>
+      <ReactSortable
+        animation={150}
+        forceFallback
+        group={JOURNEY_GROUP}
+        list={localPois}
+        onEnd={handleDragEnd}
+        onStart={handleDragStart}
+        setList={handleSetList}
+        tag="ul"
+        style={{
+          border: isEmpty ? '1px dashed rgba(0, 0, 0, 0.15)' : 'none',
+          borderRadius: 4,
+          boxSizing: 'border-box',
+          gridArea: '1 / 1',
+          listStyle: 'none',
+          margin: 0,
+          minHeight: isEmpty ? 36 : undefined,
+          paddingInlineStart: 24,
+        }}
+      >
+        {localPois.map((poi) => (
+          <li key={poi.id} style={{ listStyle: 'none' }} data-kind="POI">
+            {renderRow(poi)}
+          </li>
+        ))}
+      </ReactSortable>
+      {isEmpty && (
+        <Typography
+          variant="caption"
+          sx={{
+            alignSelf: 'center',
+            color: 'text.disabled',
+            fontStyle: 'italic',
+            gridArea: '1 / 1',
+            paddingInlineStart: '24px',
+            pointerEvents: 'none',
+          }}
+        >
+          {t('poi_drop_placeholder')}
+        </Typography>
+      )}
+    </div>
   );
 }
 
@@ -100,6 +145,7 @@ JourneyPoiList.propTypes = {
   // eslint-disable-next-line react/forbid-prop-types -- raw annotation JSON, no fixed shape
   pois: PropTypes.arrayOf(PropTypes.object).isRequired,
   renderRow: PropTypes.func.isRequired,
+  t: PropTypes.func.isRequired,
 };
 
 /**
@@ -147,6 +193,15 @@ export default function SortableCanvasAnnotationsList({
   windowId,
 }) {
   const { i18n, t } = useTranslation();
+
+  // Built once per render rather than re-derived per row via getTemplateType (which rebuilds
+  // this same array internally) - external templates never carry dbf:kind Journey/POI, so the
+  // built-in-only registry (no externalTemplates arg) always has the entry a row needs.
+  const templateEntriesById = useMemo(() => {
+    const map = new Map();
+    TEMPLATE_REGISTRY(t).forEach((entry) => map.set(entry.id, entry));
+    return map;
+  }, [t]);
 
   const canonicalGrouped = useMemo(() => groupAnnotationItems(items), [items]);
   const canonicalTopLevel = useMemo(
@@ -237,6 +292,14 @@ export default function SortableCanvasAnnotationsList({
     const title = annotationTitle(item, i18n.language) || '—';
     const isHighlighted = hoveredAnnotationIds.includes(item.id)
       || selectedAnnotationId === item.id;
+    const isJourney = item['dbf:kind'] === 'Journey';
+    const templateIcon = templateEntriesById.get(templateTypeForItem(item))?.icon;
+    let backgroundColor;
+    if (isHighlighted) {
+      backgroundColor = 'rgba(0, 0, 0, 0.04)';
+    } else if (isJourney) {
+      backgroundColor = 'rgba(0, 0, 0, 0.02)';
+    }
     return (
       <CanvasListItem
         annotationid={item.id}
@@ -246,13 +309,21 @@ export default function SortableCanvasAnnotationsList({
         onMouseEnter={() => hoverAnnotation(windowId, [item.id])}
         onMouseLeave={() => hoverAnnotation(windowId, [])}
         style={{
-          backgroundColor: isHighlighted ? 'rgba(0, 0, 0, 0.04)' : undefined,
+          alignItems: 'center',
+          backgroundColor,
           cursor: 'pointer',
+          display: 'flex',
+          gap: 8,
           listStyle: 'none',
           padding: '8px 16px',
         }}
       >
-        <Typography variant="body2">{title}</Typography>
+        {templateIcon && (
+          <span style={{ display: 'inline-flex', flexShrink: 0 }}>
+            {templateIcon}
+          </span>
+        )}
+        <Typography variant={isJourney ? 'subtitle2' : 'body2'}>{title}</Typography>
       </CanvasListItem>
     );
   };
@@ -286,6 +357,7 @@ export default function SortableCanvasAnnotationsList({
                 persist={persist}
                 pois={poisByJourneyId.get(item.id) ?? []}
                 renderRow={renderRow}
+                t={t}
               />
             </li>
           ) : (
