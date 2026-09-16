@@ -78,7 +78,6 @@ export const fr = {
   poi_description: 'Point d\'intérêt avec une cible, une description et des liens optionnels',
   poi_description_placeholder: 'Décrivez ce point d\'intérêt…',
   poi_description_section: 'Description',
-  poi_drop_placeholder: 'Glisser un POI ici',
   poi_language: "Langue",
   poi_media: 'Média',
   poi_media_no_results: 'Aucun résultat correspondant',

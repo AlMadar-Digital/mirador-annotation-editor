@@ -39,7 +39,7 @@ const JOURNEY_GROUP = {
  * (redux-derived) poi list; `persist` is the shared, stateless save callback.
  */
 function JourneyPoiList({
-  journeyId, persist, pois, renderRow, t,
+  journeyId, persist, pois, renderRow,
 }) {
   const isDraggingRef = useRef(false);
   // A drop fires one persist() per item in this list (see handleSetList below), each a
@@ -83,66 +83,9 @@ function JourneyPoiList({
     });
   }, [journeyId, persist]);
 
-  // A journey with no pois yet rendered a literally childless <ul> - real in the DOM, but with
-  // no height/border/content, indistinguishable from nothing being there and far too small a
-  // drop target. A first attempt (issue #377) left the <ul> truly childless and stacked a
-  // decorative overlay next to it, relying on sortablejs's own "totally empty list" detection
-  // (Sortable.js's emptyInsertThreshold/_detectNearestEmptySortable) to accept a drop - that
-  // path turned out unreliable in practice (the drop zone highlights on hover but the dropped
-  // item snaps back instead of landing). Rendering a REAL placeholder <li> instead keeps the
-  // list permanently non-empty from sortablejs's point of view, so a drop lands via the
-  // ordinary, far more exercised "insert after the last child" codepath instead. `filter`
-  // excludes it from being picked up as a draggable item; it disappears once a real poi exists.
-  const isEmpty = localPois.length === 0;
-
-  // react-sortablejs's own getChildren() maps over `children` positionally against the `list`
-  // prop, and only guards `child === undefined` - not the `false`/gap a conditional JSX child
-  // (`{isEmpty && <li/>}`) leaves in that array whenever a journey ISN'T empty, which crashed
-  // reading `.props` off it for every non-empty journey (issue #377 regression). Building one
-  // flat array of real elements up front - present only when actually needed - avoids that gap
-  // entirely.
-  const children = [
-    ...(isEmpty ? [(
-      <li
-        key="__drop-placeholder__"
-        className="mae-journey-drop-placeholder"
-        style={{
-          alignItems: 'center',
-          border: '1px dashed rgba(0, 0, 0, 0.15)',
-          borderRadius: 4,
-          boxSizing: 'border-box',
-          color: 'rgba(0, 0, 0, 0.4)',
-          display: 'flex',
-          fontStyle: 'italic',
-          listStyle: 'none',
-          minHeight: 36,
-          padding: '0 8px',
-        }}
-      >
-        <Typography variant="caption" sx={{ color: 'inherit', fontStyle: 'inherit' }}>
-          {t('poi_drop_placeholder')}
-        </Typography>
-      </li>
-    )] : []),
-    ...localPois.map((poi) => (
-      <li key={poi.id} style={{ listStyle: 'none' }} data-kind="POI">
-        {renderRow(poi)}
-      </li>
-    )),
-  ];
-
   return (
     <ReactSortable
       animation={150}
-      // `filter` alone only stops the placeholder being picked UP as the dragged item -
-      // sortablejs still treats it as a normal swappable sibling (its default `draggable`
-      // selector matches every `>li`), so a dragged poi hovering nearby would shift/swap
-      // positions with it exactly like a real row. Narrowing `draggable` to exclude it makes
-      // sortablejs ignore it entirely for insert/swap-target calculations - it becomes purely
-      // decorative, and a drop lands via the ordinary "insert after the (real) last child"
-      // logic instead.
-      draggable=">li:not(.mae-journey-drop-placeholder)"
-      filter=".mae-journey-drop-placeholder"
       forceFallback
       group={JOURNEY_GROUP}
       list={localPois}
@@ -152,7 +95,11 @@ function JourneyPoiList({
       tag="ul"
       style={{ listStyle: 'none', margin: 0, paddingInlineStart: 24 }}
     >
-      {children}
+      {localPois.map((poi) => (
+        <li key={poi.id} style={{ listStyle: 'none' }} data-kind="POI">
+          {renderRow(poi)}
+        </li>
+      ))}
     </ReactSortable>
   );
 }
@@ -163,7 +110,6 @@ JourneyPoiList.propTypes = {
   // eslint-disable-next-line react/forbid-prop-types -- raw annotation JSON, no fixed shape
   pois: PropTypes.arrayOf(PropTypes.object).isRequired,
   renderRow: PropTypes.func.isRequired,
-  t: PropTypes.func.isRequired,
 };
 
 /**
@@ -375,7 +321,6 @@ export default function SortableCanvasAnnotationsList({
                 persist={persist}
                 pois={poisByJourneyId.get(item.id) ?? []}
                 renderRow={renderRow}
-                t={t}
               />
             </li>
           ) : (
