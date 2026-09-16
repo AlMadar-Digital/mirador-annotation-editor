@@ -9,7 +9,9 @@ import { templateKit } from '../kit';
 import { LanguageToggle } from '../templateComponents/LanguageToggle';
 import { LocalizedMediaSelectionField } from '../templateComponents/LocalizedMediaSelectionField';
 import { RichTextField } from '../templateComponents/RichTextField';
-import { applyPoiBodyConversion, getDefaultActiveLocale, parseContentByLocale } from './POITemplate';
+import {
+  applyPoiBodyConversion, getDefaultActiveLocale, isTitleFilled, parseContentByLocale,
+} from './POITemplate';
 
 const { AnnotationFormFooter } = templateKit;
 
@@ -82,6 +84,7 @@ export default function JourneyTemplate(
   }
 
   const [annotationState, setAnnotationState] = useState(maeAnnotation);
+  const [titleError, setTitleError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activeLocale, setActiveLocale] = useState(
     getDefaultActiveLocale(annotationState.maeData.contentByLocale, contentLocales),
@@ -139,6 +142,11 @@ export default function JourneyTemplate(
 
   /** Save function * */
   const saveFunction = async () => {
+    const validTitle = isTitleFilled(annotationState.maeData.contentByLocale, contentLocales);
+    setTitleError(!validTitle);
+    if (!validTitle) {
+      return;
+    }
     setSaving(true);
     try {
       await saveAnnotation(annotationState);
@@ -165,6 +173,7 @@ export default function JourneyTemplate(
       <Grid>
         <TextField
           fullWidth
+          error={titleError}
           label={t('journey_title')}
           value={activeLocaleContent.title}
           variant="outlined"
@@ -176,6 +185,11 @@ export default function JourneyTemplate(
             },
           }}
         />
+        {titleError && (
+          <Typography color="error" variant="caption">
+            {t('journey_title_required')}
+          </Typography>
+        )}
       </Grid>
       {(searchMediaItems || searchIiifImages || searchUploads) && (
         <Grid>

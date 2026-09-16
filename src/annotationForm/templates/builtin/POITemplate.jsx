@@ -6,7 +6,7 @@ import { useSelector } from 'react-redux';
 import { getConfig } from 'dbf-mirador';
 import { TEMPLATE } from '../../AnnotationFormUtils';
 import { resizeKonvaStage, SHAPES_TOOL } from '../../AnnotationFormOverlay/KonvaDrawing/KonvaUtils';
-import { finalizeSpatialTarget, getDefaultValue, isEmptyValue } from '../../../IIIFUtils';
+import { finalizeSpatialTarget, isEmptyValue } from '../../../IIIFUtils';
 import { templateKit } from '../kit';
 import { LanguageToggle } from '../templateComponents/LanguageToggle';
 import { LocalizedMediaSelectionField } from '../templateComponents/LocalizedMediaSelectionField';
@@ -116,6 +116,21 @@ export const isValidPointTarget = (maeData) => {
 };
 
 /**
+ * Whether every configured content locale has a non-empty title (issue #377 review comment:
+ * "TitleAr and TitleEn are mandatory in the three template"). Reads straight off
+ * maeData.contentByLocale via getLocaleContent, so a locale the editor never switched to (and
+ * therefore never wrote into contentByLocale) correctly counts as missing its title too - an
+ * empty array of contentLocales (config not set) vacuously passes, matching the "no requirement
+ * configured" case. Mirrors isValidPointTarget's shape as the blocking-save guard.
+ * @param {object} contentByLocale
+ * @param {{ code: string }[]} contentLocales
+ * @returns {boolean}
+ */
+export const isTitleFilled = (contentByLocale, contentLocales) => (
+  contentLocales.every(({ code }) => !isEmptyValue(getLocaleContent(contentByLocale, code).title))
+);
+
+/**
  * Build the saved `body` array from maeData.contentByLocale: one identifying + at most one
  * describing TextualBody, per locale the editor actually touched, each tagged `language`
  * (root_repo#32 - StrapiAnnotationAdapter merges/splits these per-locale server-side). A locale
@@ -148,7 +163,7 @@ export const applyPoiBodyConversion = (state) => {
           language,
           purpose: 'identifying',
           type: TEXTUAL_BODY_TYPE,
-          value: isEmptyValue(title) ? getDefaultValue() : title,
+          value: title,
         },
         ...(isEmptyValue(description) ? [] : [{
           language, purpose: 'describing', type: TEXTUAL_BODY_TYPE, value: description,
@@ -229,6 +244,7 @@ export default function POITemplate(
 
   const [annotationState, setAnnotationState] = useState(maeAnnotation);
   const [targetError, setTargetError] = useState(false);
+  const [titleError, setTitleError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activeLocale, setActiveLocale] = useState(
     getDefaultActiveLocale(annotationState.maeData.contentByLocale, contentLocales),
@@ -300,11 +316,13 @@ export default function POITemplate(
 
   /** Save function * */
   const saveFunction = async () => {
-    if (!isValidPointTarget(annotationState.maeData)) {
-      setTargetError(true);
+    const validTarget = isValidPointTarget(annotationState.maeData);
+    const validTitle = isTitleFilled(annotationState.maeData.contentByLocale, contentLocales);
+    setTargetError(!validTarget);
+    setTitleError(!validTitle);
+    if (!validTarget || !validTitle) {
       return;
     }
-    setTargetError(false);
     resizeKonvaStage(
       windowId,
       playerReferences.getMediaTrueWidth(),
@@ -342,6 +360,7 @@ export default function POITemplate(
       <Grid>
         <TextField
           fullWidth
+          error={titleError}
           label={t('poi_title')}
           value={activeLocaleContent.title}
           variant="outlined"
@@ -353,6 +372,11 @@ export default function POITemplate(
             },
           }}
         />
+        {titleError && (
+          <Typography color="error" variant="caption">
+            {t('poi_title_required')}
+          </Typography>
+        )}
       </Grid>
       {(searchMediaItems || searchIiifImages || searchUploads) && (
         <Grid>

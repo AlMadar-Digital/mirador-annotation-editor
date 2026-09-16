@@ -8,6 +8,7 @@ import {
 import POITemplate, {
   applyPoiBodyConversion,
   convertPoiAnnotationToBeSaved,
+  isTitleFilled,
   isValidPointTarget,
 } from '../src/annotationForm/templates/builtin/POITemplate';
 import { TARGET_TOOL_STATE } from '../src/annotationForm/AnnotationFormUtils';
@@ -148,7 +149,47 @@ describe('isValidPointTarget', () => {
   });
 });
 
+describe('isTitleFilled', () => {
+  const contentLocales = [{ code: 'en', name: 'English' }, { code: 'ar', name: 'Arabic' }];
+
+  it('is true when every configured locale has a non-empty title', () => {
+    const contentByLocale = {
+      ar: { description: '', title: 'قبة الصخرة' },
+      en: { description: '', title: 'Dome of the Rock' },
+    };
+    expect(isTitleFilled(contentByLocale, contentLocales)).toBe(true);
+  });
+
+  it('is false when a configured locale is missing its title entirely', () => {
+    const contentByLocale = { en: { description: '', title: 'Dome of the Rock' } };
+    expect(isTitleFilled(contentByLocale, contentLocales)).toBe(false);
+  });
+
+  it('is false when a configured locale has a blank/whitespace-only title', () => {
+    const contentByLocale = {
+      ar: { description: '', title: '   ' },
+      en: { description: '', title: 'Dome of the Rock' },
+    };
+    expect(isTitleFilled(contentByLocale, contentLocales)).toBe(false);
+  });
+
+  it('is vacuously true when no content locales are configured', () => {
+    expect(isTitleFilled({}, [])).toBe(true);
+  });
+});
+
 describe('applyPoiBodyConversion', () => {
+  it('saves an empty title as-is, without falling back to a date string (issue #377 review comment)', () => {
+    const state = basePoiState();
+    state.maeData.contentByLocale.en.title = '';
+
+    const result = applyPoiBodyConversion(state);
+
+    expect(result.body[0]).toEqual({
+      language: 'en', purpose: 'identifying', type: 'TextualBody', value: '',
+    });
+  });
+
   it('builds body with the title as a language-tagged identifying TextualBody', () => {
     const state = basePoiState();
 
@@ -305,6 +346,63 @@ describe('POITemplate (render)', () => {
 
     expect(saveAnnotation).not.toHaveBeenCalled();
     expect(screen.getByText('poi_target_must_be_point')).toBeInTheDocument();
+  });
+
+  it('does not save and shows an error when a configured locale is missing its title, even with a valid target (issue #377 review comment)', () => {
+    const saveAnnotation = vi.fn();
+    renderPoiTemplate({
+      body: [
+        {
+          language: 'en', purpose: 'identifying', type: 'TextualBody', value: 'Dome of the Rock',
+        },
+      ],
+      'dbf:kind': 'POI',
+      id: 'canvas1/annotation/1',
+      maeData: {
+        target: { drawingState: JSON.stringify({ shapes: [poiShape()] }) },
+        templateType: 'poi',
+      },
+      motivation: 'identifying',
+      target: {
+        selector: [{ type: 'SvgSelector', value: '<svg><circle cx="10" cy="20" r="5"/></svg>' }],
+        source: 'canvas1',
+      },
+    }, saveAnnotation, CONTENT_LOCALES);
+
+    fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+    expect(saveAnnotation).not.toHaveBeenCalled();
+    expect(screen.getByText('poi_title_required')).toBeInTheDocument();
+  });
+
+  it('saves once every configured locale has a title', () => {
+    const saveAnnotation = vi.fn();
+    renderPoiTemplate({
+      body: [
+        {
+          language: 'en', purpose: 'identifying', type: 'TextualBody', value: 'Dome of the Rock',
+        },
+        {
+          language: 'ar', purpose: 'identifying', type: 'TextualBody', value: 'قبة الصخرة',
+        },
+      ],
+      'dbf:kind': 'POI',
+      id: 'canvas1/annotation/1',
+      maeData: {
+        target: { drawingState: JSON.stringify({ shapes: [poiShape()] }) },
+        templateType: 'poi',
+      },
+      motivation: 'identifying',
+      target: {
+        selector: [{ type: 'SvgSelector', value: '<svg><circle cx="10" cy="20" r="5"/></svg>' }],
+        source: 'canvas1',
+      },
+    }, saveAnnotation, CONTENT_LOCALES);
+
+    fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+    expect(saveAnnotation).toHaveBeenCalled();
+    expect(screen.queryByText('poi_title_required')).not.toBeInTheDocument();
   });
 
   it('binds the description field to the active locale and updates it on change', () => {

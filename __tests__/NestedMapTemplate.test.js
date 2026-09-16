@@ -110,6 +110,7 @@ describe('NestedMapTemplate (render)', () => {
     annotation = {},
     saveAnnotation = vi.fn(),
     searchMaps = vi.fn().mockResolvedValue([]),
+    contentLocales = [],
   ) => render(
     <I18nextProvider i18n={i18n}>
       <NestedMapTemplate
@@ -121,7 +122,7 @@ describe('NestedMapTemplate (render)', () => {
         windowId="window1"
       />
     </I18nextProvider>,
-    { preloadedState: { config: { annotation: { contentLocales: [], searchMaps } } } },
+    { preloadedState: { config: { annotation: { contentLocales, searchMaps } } } },
   );
 
   it('does not save and shows an error when the target is not a single point', () => {
@@ -155,6 +156,46 @@ describe('NestedMapTemplate (render)', () => {
     expect(saveAnnotation).toHaveBeenCalled();
     expect(screen.queryByText('poi_target_must_be_point')).not.toBeInTheDocument();
     expect(screen.queryByText('nested_map_linked_map_required')).not.toBeInTheDocument();
+  });
+
+  it('does not save and shows an error when a configured locale is missing its title, even with a valid target and linked map (issue #377 review comment)', () => {
+    const saveAnnotation = vi.fn();
+    renderNestedMapTemplate(
+      baseNestedMapState(),
+      saveAnnotation,
+      vi.fn().mockResolvedValue([]),
+      [{ code: 'en', name: 'English' }, { code: 'ar', name: 'Arabic' }],
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+    expect(saveAnnotation).not.toHaveBeenCalled();
+    expect(screen.getByText('poi_title_required')).toBeInTheDocument();
+  });
+
+  it('saves once every configured locale has a title, in addition to a valid target and linked map', () => {
+    const saveAnnotation = vi.fn();
+    renderNestedMapTemplate(
+      {
+        ...baseNestedMapState(),
+        body: [
+          {
+            language: 'en', purpose: 'identifying', type: 'TextualBody', value: 'Gate to the Old City',
+          },
+          {
+            language: 'ar', purpose: 'identifying', type: 'TextualBody', value: 'بوابة المدينة القديمة',
+          },
+        ],
+      },
+      saveAnnotation,
+      vi.fn().mockResolvedValue([]),
+      [{ code: 'en', name: 'English' }, { code: 'ar', name: 'Arabic' }],
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+    expect(saveAnnotation).toHaveBeenCalled();
+    expect(screen.queryByText('poi_title_required')).not.toBeInTheDocument();
   });
 
   it('does not render the linked-map field when no searchMaps capability is configured', () => {

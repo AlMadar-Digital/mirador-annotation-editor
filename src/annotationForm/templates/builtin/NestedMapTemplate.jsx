@@ -16,6 +16,7 @@ import {
   getDefaultActiveLocale,
   getLocaleContent,
   isRtlLocale,
+  isTitleFilled,
   isValidPointTarget,
   parseContentByLocale,
 } from './POITemplate';
@@ -88,6 +89,7 @@ export default function NestedMapTemplate(
   const [annotationState, setAnnotationState] = useState(maeAnnotation);
   const [targetError, setTargetError] = useState(false);
   const [linkedMapError, setLinkedMapError] = useState(false);
+  const [titleError, setTitleError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activeLocale, setActiveLocale] = useState(
     getDefaultActiveLocale(annotationState.maeData.contentByLocale, contentLocales),
@@ -142,9 +144,11 @@ export default function NestedMapTemplate(
   const saveFunction = async () => {
     const validTarget = isValidPointTarget(annotationState.maeData);
     const validLinkedMap = Boolean(annotationState['dbf:linkedMap']);
+    const validTitle = isTitleFilled(annotationState.maeData.contentByLocale, contentLocales);
     setTargetError(!validTarget);
     setLinkedMapError(!validLinkedMap);
-    if (!validTarget || !validLinkedMap) {
+    setTitleError(!validTitle);
+    if (!validTarget || !validLinkedMap || !validTitle) {
       return;
     }
     resizeKonvaStage(
@@ -179,6 +183,7 @@ export default function NestedMapTemplate(
       <Grid>
         <TextField
           fullWidth
+          error={titleError}
           label={t('poi_title')}
           value={activeLocaleContent.title}
           variant="outlined"
@@ -190,6 +195,11 @@ export default function NestedMapTemplate(
             },
           }}
         />
+        {titleError && (
+          <Typography color="error" variant="caption">
+            {t('poi_title_required')}
+          </Typography>
+        )}
       </Grid>
       <Grid>
         <Typography variant="formSectionTitle">{t('nested_map_linked_map')}</Typography>
