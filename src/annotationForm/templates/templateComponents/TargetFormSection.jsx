@@ -64,8 +64,6 @@ export default function TargetFormSection({
 
   if (!spatialTarget) return null;
 
-  console.log('ttot');
-
   return (
     <Grid container direction="column" spacing={1}>
       <Grid>

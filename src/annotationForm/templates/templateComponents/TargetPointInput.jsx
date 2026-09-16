@@ -45,6 +45,9 @@ export function TargetPointInput({
       isDrawing: false,
       shapes,
       ...targetDrawingState,
+      // Recover the existing point as the selected shape so an editing user
+      // sees/can immediately drag the marker they already placed
+      ...(shapes.length > 0 ? { currentShape: shapes[0] } : {}),
     };
   });
 
