@@ -5,6 +5,7 @@ import {
   getSvg,
   SHAPES_TOOL,
   OVERLAY_TOOL,
+  POI_MARKER_STYLE,
 } from './annotationForm/AnnotationFormOverlay/KonvaDrawing/KonvaUtils';
 import { TARGET_TOOL_STATE, TEMPLATE } from './annotationForm/AnnotationFormUtils';
 
@@ -343,9 +344,65 @@ const convertFragmentSelectorToMae = (selector) => {
   };
 };
 
-const convertSvgSelectorToMae = (selector) => {
+/**
+ * Reconstructs a POI/NestedMap point's `maeData.target` from its saved SvgSelector: PoiNode
+ * always renders the marker as a plain Konva `<Circle>` (see PoiNode.jsx), so the SVG this was
+ * exported from (finalizeSpatialTarget -> getSvg) always contains a `<circle cx cy r>` for it -
+ * unlike the generic bounding-box reconstruction below, this must produce a SHAPES_TOOL.POI
+ * shape (not RECTANGLE), or every reopened POI/NestedMap fails isValidPointTarget's type check
+ * and blocks save with "you must choose a target" even though a marker was already placed and
+ * nothing was touched (issue #377 review comment). Colors come from POI_MARKER_STYLE, the same
+ * fixed, non-configurable appearance PoiNode itself uses - not from the SVG, since a POI marker
+ * carries no size/style knobs to round-trip.
+ * @param {Element} circleEl
+ * @param {string} svgValue
+ * @returns {object} maeTarget
+ */
+const convertPoiCircleSelectorToMae = (circleEl, svgValue) => {
+  const currentShape = {
+    fill: POI_MARKER_STYLE.fill,
+    id: uuidv4(),
+    radius: parseFloat(circleEl.getAttribute('r')) || 0,
+    rotation: 0,
+    scaleX: 1,
+    scaleY: 1,
+    stroke: POI_MARKER_STYLE.stroke,
+    strokeWidth: POI_MARKER_STYLE.strokeWidth,
+    type: SHAPES_TOOL.POI,
+    x: parseFloat(circleEl.getAttribute('cx')) || 0,
+    y: parseFloat(circleEl.getAttribute('cy')) || 0,
+  };
+
+  return {
+    drawingState: JSON.stringify({
+      currentShape,
+      isDrawing: false,
+      shapes: [currentShape],
+    }),
+    svg: svgValue,
+  };
+};
+
+/**
+ * @param {{ type: string, value: string }} selector
+ * @param {string} [templateType] - when POI_TYPE/NESTED_MAP_TYPE, a `<circle>` in the SVG is the
+ *   fixed POI marker (see convertPoiCircleSelectorToMae) rather than a user-drawn Circle shape
+ *   (SHAPES_TOOL.CIRCLE, available from the general shape toolbar on other spatial-target
+ *   templates) - this must not run for those, or a real drawn circle would be misreconstructed
+ *   as a POI marker on reload.
+ * @returns {object} maeTarget
+ */
+const convertSvgSelectorToMae = (selector, templateType) => {
   const parser = new DOMParser();
   const svgDoc = parser.parseFromString(selector.value, 'image/svg+xml');
+
+  if (templateType === TEMPLATE.POI_TYPE || templateType === TEMPLATE.NESTED_MAP_TYPE) {
+    const circleEl = svgDoc.querySelector('circle');
+    if (circleEl) {
+      return convertPoiCircleSelectorToMae(circleEl, selector.value);
+    }
+  }
+
   const xywh = svgToXywh(svgDoc);
   const fullW = svgDoc.querySelector('svg').getAttribute('width') || undefined;
   const fullH = svgDoc.querySelector('svg').getAttribute('height') || undefined;
@@ -392,9 +449,10 @@ const convertSvgSelectorToMae = (selector) => {
  *
  * @param {object} target
  * @param {string} annotationId
+ * @param {string} [templateType] - forwarded to convertSvgSelectorToMae; see its own doc
  * @returns {object}
  */
-const convertIIIFTargetToMae = (target, annotationId) => {
+const convertIIIFTargetToMae = (target, annotationId, templateType) => {
   const supportedSelectorTypes = ['SvgSelector', 'FragmentSelector'];
   const selectorArray = Array.isArray(target.selector) ? target.selector : [target.selector];
 
@@ -403,7 +461,7 @@ const convertIIIFTargetToMae = (target, annotationId) => {
     // we put the try..catch in the loop to skip the error and fallback to another selector if possible
     try {
       if (selector.type === 'SvgSelector') {
-        return convertSvgSelectorToMae(selector);
+        return convertSvgSelectorToMae(selector, templateType);
       } if (selector.type === 'FragmentSelector') {
         return convertFragmentSelectorToMae(selector);
       }
@@ -436,7 +494,7 @@ export function convertIIIFAnnoToMaeData(anno) {
       maeData.templateType = templateType;
       maeData.textBody = textBody;
 
-      maeData.target = convertIIIFTargetToMae(anno.target, anno.id);
+      maeData.target = convertIIIFTargetToMae(anno.target, anno.id, templateType);
       anno.maeData = maeData;
       return anno;
     } catch (e) {

@@ -405,6 +405,66 @@ describe('convertIIIFAnnoToMaeData', () => {
     expect(result.maeData.target.svg).toContain('<svg');
   });
 
+  it('rebuilds a POI\'s maeData.target as a SHAPES_TOOL.POI marker from its <circle> SvgSelector, not the generic rectangle bounding box (issue #377 review comment)', () => {
+    const anno = {
+      'dbf:kind': 'POI',
+      id: 'anno1',
+      motivation: 'identifying',
+      target: {
+        selector: [
+          { type: 'SvgSelector', value: "<svg xmlns='http://www.w3.org/2000/svg' width='800' height='600'><circle cx='123.4' cy='56.7' r='10' fill='#e53935' stroke='#ffffff'/></svg>" },
+          { type: 'FragmentSelector', value: 'canvas1#' },
+        ],
+      },
+    };
+
+    const result = convertIIIFAnnoToMaeData(anno);
+    const drawingState = JSON.parse(result.maeData.target.drawingState);
+
+    expect(drawingState.shapes).toHaveLength(1);
+    expect(drawingState.shapes[0]).toMatchObject({
+      radius: 10, type: SHAPES_TOOL.POI, x: 123.4, y: 56.7,
+    });
+    expect(drawingState.currentShape).toMatchObject({ type: SHAPES_TOOL.POI });
+  });
+
+  it('rebuilds a NestedMap point\'s maeData.target as SHAPES_TOOL.POI too (issue #350: shares POI\'s target shape)', () => {
+    const anno = {
+      'dbf:kind': 'POI',
+      'dbf:linkedMap': { id: 'map-7', titleEn: 'Old City' },
+      id: 'anno1',
+      motivation: 'identifying',
+      target: {
+        selector: [
+          { type: 'SvgSelector', value: "<svg xmlns='http://www.w3.org/2000/svg' width='800' height='600'><circle cx='1' cy='2' r='5'/></svg>" },
+        ],
+      },
+    };
+
+    const result = convertIIIFAnnoToMaeData(anno);
+    const drawingState = JSON.parse(result.maeData.target.drawingState);
+
+    expect(drawingState.shapes[0].type).toBe(SHAPES_TOOL.POI);
+  });
+
+  it('still reconstructs a non-POI template\'s <circle> SvgSelector as a rectangle bounding box (issue #21: the generic Circle shape tool is unrelated to the POI marker)', () => {
+    const anno = {
+      bodyValue: 'x',
+      id: 'anno1',
+      target: {
+        selector: {
+          type: 'SvgSelector',
+          value: "<svg xmlns='http://www.w3.org/2000/svg' width='800' height='600'><circle cx='1' cy='2' r='5'/></svg>",
+        },
+      },
+    };
+
+    const result = convertIIIFAnnoToMaeData(anno);
+    const drawingState = JSON.parse(result.maeData.target.drawingState);
+
+    expect(drawingState.shapes[0].type).toBe(SHAPES_TOOL.RECTANGLE);
+  });
+
   describe('with a stubbed SVGGraphicsElement.getBBox', () => {
     // happy-dom's SVGGraphicsElement.getBBox is a stub that always returns a zero rect:
     // override it so the (real-browser-only) bbox extraction path is exercised deterministically.

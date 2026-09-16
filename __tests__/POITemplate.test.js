@@ -13,6 +13,7 @@ import POITemplate, {
 } from '../src/annotationForm/templates/builtin/POITemplate';
 import { TARGET_TOOL_STATE } from '../src/annotationForm/AnnotationFormUtils';
 import { SHAPES_TOOL } from '../src/annotationForm/AnnotationFormOverlay/KonvaDrawing/KonvaUtils';
+import { convertIIIFAnnoToMaeData } from '../src/IIIFUtils';
 
 // tetras-dbf/mirador-annotation-editor#4/#21: the POI template's target must be exactly one
 // placed POI marker (SHAPES_TOOL.POI, the dedicated click-to-place tool - see
@@ -346,6 +347,36 @@ describe('POITemplate (render)', () => {
 
     expect(saveAnnotation).not.toHaveBeenCalled();
     expect(screen.getByText('poi_target_must_be_point')).toBeInTheDocument();
+  });
+
+  it('saves an unmodified, real Strapi-loaded POI without a target error (issue #377 review comment: "open in edition a POI, change nothing, save, it\'s not possible to close")', () => {
+    // Mirrors what StrapiAnnotationAdapter actually hands POITemplate: no maeData of its own
+    // (Strapi never round-trips it - see that adapter's own comment) and a real MAE-saved
+    // target's SvgSelector, whose marker is a plain <circle> (see PoiNode.jsx) - not the
+    // synthetic already-maeData'd fixtures every other test in this file uses.
+    const strapiLoadedAnnotation = convertIIIFAnnoToMaeData({
+      body: [
+        {
+          language: 'en', purpose: 'identifying', type: 'TextualBody', value: 'Dome of the Rock',
+        },
+      ],
+      'dbf:kind': 'POI',
+      id: 'canvas1/annotation/1',
+      motivation: 'identifying',
+      target: {
+        selector: [
+          { type: 'SvgSelector', value: "<svg xmlns='http://www.w3.org/2000/svg' width='800' height='600'><circle cx='10' cy='20' r='5' fill='#e53935' stroke='#ffffff'/></svg>" },
+          { type: 'FragmentSelector', value: 'canvas1#' },
+        ],
+      },
+    });
+    const saveAnnotation = vi.fn();
+    renderPoiTemplate(strapiLoadedAnnotation, saveAnnotation);
+
+    fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+    expect(screen.queryByText('poi_target_must_be_point')).not.toBeInTheDocument();
+    expect(saveAnnotation).toHaveBeenCalled();
   });
 
   it('does not save and shows an error when a configured locale is missing its title, even with a valid target (issue #377 review comment)', () => {

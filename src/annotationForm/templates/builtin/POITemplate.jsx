@@ -96,17 +96,17 @@ export const parseContentByLocale = (body) => {
  * A POI's spatial target must be exactly one placed POI marker (SHAPES_TOOL.POI, tetras-dbf/
  * mirador-annotation-editor#21's dedicated click-to-place tool - no shared toolbar, no style
  * options, no resize). TargetFormSection's `pointOnly` mode makes drawing anything else
- * structurally impossible in normal use, but this still guards two real cases: no point has been
- * placed yet (drawingState.shapes is empty), and an annotation loaded from outside MAE (see the
- * KNOWN LIMITATION below).
+ * structurally impossible in normal use, but this still guards the case where no point has been
+ * placed yet (drawingState.shapes is empty).
  *
- * KNOWN LIMITATION (not yet reachable - no producer of maeData-less POI annotations exists until
- * strapi-plugins#10 ships): IIIFUtils.js's convertSvgSelectorToMae reconstructs ANY SvgSelector,
- * circle included, as a SHAPES_TOOL.RECTANGLE shape (bounding-box only, no shape-type detection).
- * So a POI created outside MAE, once opened here for the first time, will show/validate as a
- * rectangle - failing this very check - until convertSvgSelectorToMae is taught to recognize a
- * lone <circle> element. Left unfixed here since it would touch shared code with zero test
- * coverage for non-rectangular shapes today; track as a follow-up once strapi-plugins#10 lands.
+ * Every POI/NestedMap this actually loads comes back from StrapiAnnotationAdapter without a
+ * `maeData` (Strapi never round-trips it - see that adapter's own comment), so maeData.target is
+ * always rebuilt fresh from the saved SvgSelector via IIIFUtils.js's convertSvgSelectorToMae.
+ * That reconstruction must specifically recognize the marker's `<circle>` as SHAPES_TOOL.POI
+ * (not its generic SHAPES_TOOL.RECTANGLE bounding-box fallback used for every other
+ * spatial-target template) - otherwise this check fails on every single reopened POI/NestedMap,
+ * even completely unmodified, surfacing "you must choose a target" on save (issue #377 review
+ * comment: "open in edition a POI, change nothing, save, it's not possible to close").
  * @param maeData
  * @returns {boolean}
  */
