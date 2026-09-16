@@ -4,6 +4,7 @@ import React, {
 import PropTypes from 'prop-types';
 import DeleteIcon from '@mui/icons-material/DeleteForever';
 import EditIcon from '@mui/icons-material/Edit';
+import MapIcon from '@mui/icons-material/Map';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import ToggleButton from '@mui/material/ToggleButton';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -119,6 +120,18 @@ const CanvasListItem = forwardRef((props, ref) => {
       position: 'right',
     });
   };
+  /**
+   * Opens the map linked to a Nested Map point (issue #350/#407) in a brand new Mirador
+   * window, instead of previewing it in a companion window like a plain POI/Journey does.
+   * Delegates the actual "how" (building the manifest URL, dispatching addWindow) to the
+   * host app via `config.annotation.openLinkedMap`, the same way searchMaps/searchMediaItems
+   * etc. are host-supplied - this package has no notion of Strapi's manifest endpoint.
+   * @function handleOpenNestedMap
+   * @returns {void}
+   */
+  const handleOpenNestedMap = () => {
+    context.config?.annotation?.openLinkedMap?.(annotationData?.['dbf:linkedMap']);
+  };
     /**
      * Checks if a given annotation ID is editable.
      * @returns {boolean} Returns true if the annotation ID is editable, false otherwise.
@@ -221,7 +234,21 @@ const CanvasListItem = forwardRef((props, ref) => {
             </Tooltip>
             )}
 
-            {!!annotationData?.['dbf:kind'] && (
+            {!!annotationData?.['dbf:linkedMap'] && (
+            <Tooltip title={t('openNestedMap')}>
+              <span>
+                <ToggleButton
+                  aria-label="Open nested map"
+                  onClick={handleOpenNestedMap}
+                  value="open-nested-map"
+                >
+                  <MapIcon />
+                </ToggleButton>
+              </span>
+            </Tooltip>
+            )}
+
+            {!annotationData?.['dbf:linkedMap'] && !!annotationData?.['dbf:kind'] && (
             <Tooltip title={t('previewAnnotation')}>
               <span>
                 <ToggleButton

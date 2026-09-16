@@ -151,6 +151,49 @@ describe('CanvasListItem', () => {
       .toHaveBeenCalledWith('mapsPoiPreview', { annotationid: 'anno/1', position: 'right' });
   });
 
+  it('shows "open nested map" instead of preview for a Nested Map point (dbf:linkedMap present), and delegates to config.annotation.openLinkedMap on click', async () => {
+    const openLinkedMap = vi.fn();
+    const linkedMap = { id: 'map/2', titleEn: 'Nested map' };
+
+    createWrapper({}, {
+      annotationPreviewCompanionWindowIsOpened: true,
+      annotationsOnCanvases: {
+        'canv/1': {
+          'annoPage/1': {
+            json: {
+              items: [
+                {
+                  'dbf:kind': 'POI',
+                  'dbf:linkedMap': linkedMap,
+                  id: 'anno/1',
+                  maeData: { someData: 'someValue' }
+                }
+              ]
+            }
+          }
+        }
+      },
+      canvases: [{ id: 'canv/1' }],
+      config: { annotation: { openLinkedMap } }
+    });
+
+    const li = screen.getByText('HelloWorld')
+      .closest('li');
+    await userEvent.hover(li);
+
+    expect(screen.queryByRole('button', { name: /preview/i }))
+      .toBeNull();
+
+    const openNestedMapButton = screen.getByRole('button', { name: /open nested map/i });
+    expect(openNestedMapButton)
+      .toBeInTheDocument();
+
+    await userEvent.click(openNestedMapButton);
+
+    expect(openLinkedMap)
+      .toHaveBeenCalledWith(linkedMap);
+  });
+
   it('disables preview while a preview companion window is already open', async () => {
     createWrapper({}, {
       annotationPreviewCompanionWindowIsOpened: false,

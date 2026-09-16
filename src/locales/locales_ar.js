@@ -76,6 +76,7 @@ export const ar = {
   note: "ملاحظة",
   object_list: "قائمة العناصر",
   onlyOneImageAllowed: "يُسمح بصورة واحدة فقط",
+  openNestedMap: "فتح الخريطة",
   overlay: "الطبقة العلوية",
   poi: "نقطة اهتمام",
   poi_click_to_place: "انقر على الصورة لوضع علامة نقطة الاهتمام. انقر مرة أخرى لتحريكها.",

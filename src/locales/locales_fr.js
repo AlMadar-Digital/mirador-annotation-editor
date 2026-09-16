@@ -76,6 +76,7 @@ export const fr = {
   note: 'Note',
   object_list: 'Liste des objets',
   onlyOneImageAllowed: 'Une seule image par annotation',
+  openNestedMap: 'Ouvrir la carte',
   overlay: 'Dessin',
   poi: 'POI',
   poi_click_to_place: 'Cliquez sur l\'image pour placer le marqueur du POI. Cliquez à nouveau pour le déplacer.',

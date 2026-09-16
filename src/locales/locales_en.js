@@ -76,6 +76,7 @@ export const en = {
   note: 'Note',
   object_list: 'Object list',
   onlyOneImageAllowed: 'Only one image is allowed',
+  openNestedMap: 'Open map',
   overlay: 'Overlay',
   poi: 'POI',
   poi_click_to_place: 'Click on the image to place the POI marker. Click again to move it.',
