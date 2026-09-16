@@ -1,12 +1,5 @@
 import React, { useRef, useState } from 'react';
-import {
-  FormControl,
-  Grid,
-  InputLabel,
-  MenuItem,
-  Select,
-  TextField,
-} from '@mui/material';
+import { Grid, TextField } from '@mui/material';
 import Typography from '@mui/material/Typography';
 import PropTypes from 'prop-types';
 import { useSelector } from 'react-redux';
@@ -15,10 +8,12 @@ import { TEMPLATE } from '../../AnnotationFormUtils';
 import { resizeKonvaStage } from '../../AnnotationFormOverlay/KonvaDrawing/KonvaUtils';
 import { finalizeSpatialTarget } from '../../../IIIFUtils';
 import { templateKit } from '../kit';
+import { LanguageToggle } from '../templateComponents/LanguageToggle';
 import { MapRelationField } from '../templateComponents/MapRelationField';
 import { RichTextField } from '../templateComponents/RichTextField';
 import {
   applyPoiBodyConversion,
+  getDefaultActiveLocale,
   getLocaleContent,
   isRtlLocale,
   isValidPointTarget,
@@ -95,7 +90,7 @@ export default function NestedMapTemplate(
   const [linkedMapError, setLinkedMapError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activeLocale, setActiveLocale] = useState(
-    Object.keys(annotationState.maeData.contentByLocale)[0] ?? contentLocales[0]?.code,
+    getDefaultActiveLocale(annotationState.maeData.contentByLocale, contentLocales),
   );
 
   const rootRef = useRef(null);
@@ -172,24 +167,14 @@ export default function NestedMapTemplate(
         <Grid>
           <Typography variant="formSectionTitle">{t('nested_map')}</Typography>
         </Grid>
-        {contentLocales.length > 1 && (
-          <Grid>
-            <FormControl size="small" sx={{ minWidth: 160 }}>
-              <InputLabel id="nested-map-language-label">{t('poi_language')}</InputLabel>
-              <Select
-                labelId="nested-map-language-label"
-                label={t('poi_language')}
-                value={activeLocale ?? ''}
-                onChange={(event) => setActiveLocale(event.target.value)}
-                MenuProps={{ container: dialogContainer }}
-              >
-                {contentLocales.map(({ code, name }) => (
-                  <MenuItem key={code} value={code}>{name ?? code}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-        )}
+        <Grid>
+          <LanguageToggle
+            contentLocales={contentLocales}
+            label={t('poi_language')}
+            onChange={setActiveLocale}
+            value={activeLocale}
+          />
+        </Grid>
       </Grid>
       <Grid>
         <TextField

@@ -1,12 +1,5 @@
 import React, { useRef, useState } from 'react';
-import {
-  FormControl,
-  Grid,
-  InputLabel,
-  MenuItem,
-  Select,
-  TextField,
-} from '@mui/material';
+import { Grid, TextField } from '@mui/material';
 import Typography from '@mui/material/Typography';
 import PropTypes from 'prop-types';
 import { useSelector } from 'react-redux';
@@ -15,6 +8,7 @@ import { TEMPLATE } from '../../AnnotationFormUtils';
 import { resizeKonvaStage, SHAPES_TOOL } from '../../AnnotationFormOverlay/KonvaDrawing/KonvaUtils';
 import { finalizeSpatialTarget, getDefaultValue, isEmptyValue } from '../../../IIIFUtils';
 import { templateKit } from '../kit';
+import { LanguageToggle } from '../templateComponents/LanguageToggle';
 import { LocalizedMediaSelectionField } from '../templateComponents/LocalizedMediaSelectionField';
 import { RichTextField } from '../templateComponents/RichTextField';
 
@@ -34,9 +28,23 @@ export const TEXTUAL_BODY_TYPE = 'TextualBody';
  * name-suffix convention apps/strapi/src/admin/rtl-fields.css already uses for the same *Ar
  * fields in Strapi's own Content Manager form, applied here per-activeLocale instead, since this
  * form shows one language's fields at a time rather than an En/Ar pair side by side (see the
- * language Select below). */
+ * language LanguageToggle below). */
 export const isRtlLocale = (localeCode) => (
   typeof localeCode === 'string' && localeCode.toLowerCase().startsWith('ar')
+);
+
+/**
+ * The active content locale a POI/Journey template should open with: whichever locale the
+ * loaded annotation already has content in (so re-opening an Arabic-only POI doesn't land on an
+ * empty English tab), else 'en' if it's configured at all, else just the first configured
+ * locale (issue #377 comment: "Replace lang selector with a toggle ar/en. En by default").
+ * @param {object} contentByLocale
+ * @param {{ code: string }[]} contentLocales
+ * @returns {string|undefined}
+ */
+export const getDefaultActiveLocale = (contentByLocale, contentLocales) => (
+  Object.keys(contentByLocale)[0]
+  ?? (contentLocales.some(({ code }) => code === 'en') ? 'en' : contentLocales[0]?.code)
 );
 
 export const EMPTY_LOCALE_CONTENT = { description: '', title: '' };
@@ -223,7 +231,7 @@ export default function POITemplate(
   const [targetError, setTargetError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activeLocale, setActiveLocale] = useState(
-    Object.keys(annotationState.maeData.contentByLocale)[0] ?? contentLocales[0]?.code,
+    getDefaultActiveLocale(annotationState.maeData.contentByLocale, contentLocales),
   );
 
   const rootRef = useRef(null);
@@ -322,24 +330,14 @@ export default function POITemplate(
         <Grid>
           <Typography variant="formSectionTitle">{t('poi')}</Typography>
         </Grid>
-        {contentLocales.length > 1 && (
-          <Grid>
-            <FormControl size="small" sx={{ minWidth: 160 }}>
-              <InputLabel id="poi-language-label">{t('poi_language')}</InputLabel>
-              <Select
-                labelId="poi-language-label"
-                label={t('poi_language')}
-                value={activeLocale ?? ''}
-                onChange={(event) => setActiveLocale(event.target.value)}
-                MenuProps={{ container: dialogContainer }}
-              >
-                {contentLocales.map(({ code, name }) => (
-                  <MenuItem key={code} value={code}>{name ?? code}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-        )}
+        <Grid>
+          <LanguageToggle
+            contentLocales={contentLocales}
+            label={t('poi_language')}
+            onChange={setActiveLocale}
+            value={activeLocale}
+          />
+        </Grid>
       </Grid>
       <Grid>
         <TextField
@@ -359,6 +357,7 @@ export default function POITemplate(
       {(searchMediaItems || searchIiifImages || searchUploads) && (
         <Grid>
           <LocalizedMediaSelectionField
+            activeLocaleIsRtl={activeLocaleIsRtl}
             dialogContainer={dialogContainer}
             keepSameLabel={t('poi_media_keep_same')}
             labelAr={t('poi_media_ar')}

@@ -376,7 +376,7 @@ describe('POITemplate (render)', () => {
   it('hides the language selector when fewer than two content locales are configured', () => {
     renderPoiTemplate({}, vi.fn(), [{ code: 'en', name: 'English' }]);
 
-    expect(screen.queryByText('poi_language')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('poi_language')).not.toBeInTheDocument();
   });
 
   it("switching the language selector shows that locale's own title, independent of the others", () => {
@@ -404,8 +404,7 @@ describe('POITemplate (render)', () => {
 
     expect(screen.getByDisplayValue('Dome of the Rock')).toBeInTheDocument();
 
-    fireEvent.mouseDown(screen.getByLabelText('poi_language'));
-    fireEvent.click(screen.getByRole('option', { name: 'Arabic' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Arabic' }));
 
     expect(screen.getByDisplayValue('قبة الصخرة')).toBeInTheDocument();
     expect(screen.queryByDisplayValue('Dome of the Rock')).not.toBeInTheDocument();
@@ -417,11 +416,17 @@ describe('POITemplate (render)', () => {
     expect(screen.getByLabelText('poi_title')).toHaveAttribute('dir', 'ltr');
     expect(screen.getByTestId('poi-description')).toHaveAttribute('data-rtl', 'false');
 
-    fireEvent.mouseDown(screen.getByLabelText('poi_language'));
-    fireEvent.click(screen.getByRole('option', { name: 'Arabic' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Arabic' }));
 
     expect(screen.getByLabelText('poi_title')).toHaveAttribute('dir', 'rtl');
     expect(screen.getByTestId('poi-description')).toHaveAttribute('data-rtl', 'true');
+  });
+
+  it('defaults the active locale to English when a new annotation is created', () => {
+    renderPoiTemplate({}, vi.fn(), CONTENT_LOCALES);
+
+    expect(screen.getByRole('button', { name: 'English' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Arabic' })).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('does not render a media field when no search capability is configured (issue #391)', () => {
@@ -553,7 +558,7 @@ describe('POITemplate (render)', () => {
     expect(screen.getByLabelText('poi_media_en')).toHaveValue('');
   });
 
-  it('keeps the Arabic media field hidden by default for a new annotation, and mirrors the English pick into it while "keep same" is checked (issue #377)', async () => {
+  it('shows only the active locale\'s media field, and mirrors a pick into the other language while "keep same" is checked (issue #377)', async () => {
     const searchMediaItems = vi.fn().mockImplementation((query) => Promise.resolve(
       query === 'Dome'
         ? [{
@@ -561,7 +566,7 @@ describe('POITemplate (render)', () => {
         }]
         : [],
     ));
-    renderPoiTemplate({}, vi.fn(), [], searchMediaItems);
+    renderPoiTemplate({}, vi.fn(), CONTENT_LOCALES, searchMediaItems);
 
     expect(screen.queryByLabelText('poi_media_ar')).not.toBeInTheDocument();
 
@@ -570,14 +575,17 @@ describe('POITemplate (render)', () => {
     await waitFor(() => expect(searchMediaItems).toHaveBeenCalledWith('Dome'));
     fireEvent.click(await screen.findByRole('option', { name: 'Dome of the Rock tour' }));
 
-    // Reveal the Arabic field (still checked, so its value only shows once unchecked) to
-    // confirm the English pick was mirrored into dbf:mediaAr, not just dbf:mediaEn.
-    fireEvent.click(screen.getByRole('checkbox', { name: 'poi_media_keep_same' }));
+    // A new annotation starts with "keep same" checked (both media start out empty/matching),
+    // so switching to the Arabic tab should show the English pick mirrored in, without ever
+    // showing both fields together.
+    expect(screen.getByRole('checkbox', { name: 'poi_media_keep_same' })).toBeChecked();
+    fireEvent.click(screen.getByRole('button', { name: 'Arabic' }));
 
+    expect(screen.queryByLabelText('poi_media_en')).not.toBeInTheDocument();
     expect(screen.getByLabelText('poi_media_ar')).toHaveValue('Dome of the Rock tour');
   });
 
-  it('unchecking "keep same media" reveals an independent Arabic field that no longer mirrors English (issue #377)', async () => {
+  it('unchecking "keep same media" stops further picks from mirroring across languages (issue #377)', async () => {
     const searchMediaItems = vi.fn().mockImplementation((query) => Promise.resolve(
       // eslint-disable-next-line no-nested-ternary -- three fixed mappings, a switch is no clearer
       query === 'Dome'
@@ -590,7 +598,7 @@ describe('POITemplate (render)', () => {
           }]
           : [],
     ));
-    renderPoiTemplate({}, vi.fn(), [], searchMediaItems);
+    renderPoiTemplate({}, vi.fn(), CONTENT_LOCALES, searchMediaItems);
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'poi_media_keep_same' }));
 
@@ -599,16 +607,21 @@ describe('POITemplate (render)', () => {
     await waitFor(() => expect(searchMediaItems).toHaveBeenCalledWith('Dome'));
     fireEvent.click(await screen.findByRole('option', { name: 'Dome of the Rock tour' }));
 
+    fireEvent.click(screen.getByRole('button', { name: 'Arabic' }));
+
     const arabicField = screen.getByLabelText('poi_media_ar');
     await userEvent.type(arabicField, 'Aqsa');
     await waitFor(() => expect(searchMediaItems).toHaveBeenCalledWith('Aqsa'));
     fireEvent.click(await screen.findByRole('option', { name: 'Al-Aqsa tour' }));
 
     expect(screen.getByLabelText('poi_media_ar')).toHaveValue('Al-Aqsa tour');
+
+    fireEvent.click(screen.getByRole('button', { name: 'English' }));
+
     expect(screen.getByLabelText('poi_media_en')).toHaveValue('Dome of the Rock tour');
   });
 
-  it('starts with "keep same media" unchecked, showing both fields, when a loaded annotation already has different mediaEn/mediaAr (issue #377)', () => {
+  it('starts with "keep same media" unchecked, showing each locale\'s own field, when a loaded annotation already has different mediaEn/mediaAr (issue #377)', () => {
     renderPoiTemplate({
       body: [
         {
@@ -632,10 +645,15 @@ describe('POITemplate (render)', () => {
         selector: [{ type: 'SvgSelector', value: '<svg><circle cx="10" cy="20" r="5"/></svg>' }],
         source: 'canvas1',
       },
-    }, vi.fn(), [], vi.fn().mockResolvedValue([]));
+    }, vi.fn(), CONTENT_LOCALES, vi.fn().mockResolvedValue([]));
 
     expect(screen.getByRole('checkbox', { name: 'poi_media_keep_same' })).not.toBeChecked();
     expect(screen.getByLabelText('poi_media_en')).toHaveValue('Dome of the Rock tour');
+    expect(screen.queryByLabelText('poi_media_ar')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Arabic' }));
+
+    expect(screen.queryByLabelText('poi_media_en')).not.toBeInTheDocument();
     expect(screen.getByLabelText('poi_media_ar')).toHaveValue('Al-Aqsa tour');
   });
 

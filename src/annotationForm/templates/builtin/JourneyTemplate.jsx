@@ -1,21 +1,15 @@
 import React, { useRef, useState } from 'react';
-import {
-  FormControl,
-  Grid,
-  InputLabel,
-  MenuItem,
-  Select,
-  TextField,
-} from '@mui/material';
+import { Grid, TextField } from '@mui/material';
 import Typography from '@mui/material/Typography';
 import PropTypes from 'prop-types';
 import { useSelector } from 'react-redux';
 import { getConfig } from 'dbf-mirador';
 import { TEMPLATE } from '../../AnnotationFormUtils';
 import { templateKit } from '../kit';
+import { LanguageToggle } from '../templateComponents/LanguageToggle';
 import { LocalizedMediaSelectionField } from '../templateComponents/LocalizedMediaSelectionField';
 import { RichTextField } from '../templateComponents/RichTextField';
-import { applyPoiBodyConversion, parseContentByLocale } from './POITemplate';
+import { applyPoiBodyConversion, getDefaultActiveLocale, parseContentByLocale } from './POITemplate';
 
 const { AnnotationFormFooter } = templateKit;
 
@@ -90,7 +84,7 @@ export default function JourneyTemplate(
   const [annotationState, setAnnotationState] = useState(maeAnnotation);
   const [saving, setSaving] = useState(false);
   const [activeLocale, setActiveLocale] = useState(
-    Object.keys(annotationState.maeData.contentByLocale)[0] ?? contentLocales[0]?.code,
+    getDefaultActiveLocale(annotationState.maeData.contentByLocale, contentLocales),
   );
 
   const rootRef = useRef(null);
@@ -159,24 +153,14 @@ export default function JourneyTemplate(
         <Grid>
           <Typography variant="formSectionTitle">{t('journey')}</Typography>
         </Grid>
-        {contentLocales.length > 1 && (
-          <Grid>
-            <FormControl size="small" sx={{ minWidth: 160 }}>
-              <InputLabel id="journey-language-label">{t('journey_language')}</InputLabel>
-              <Select
-                labelId="journey-language-label"
-                label={t('journey_language')}
-                value={activeLocale ?? ''}
-                onChange={(event) => setActiveLocale(event.target.value)}
-                MenuProps={{ container: dialogContainer }}
-              >
-                {contentLocales.map(({ code, name }) => (
-                  <MenuItem key={code} value={code}>{name ?? code}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-        )}
+        <Grid>
+          <LanguageToggle
+            contentLocales={contentLocales}
+            label={t('journey_language')}
+            onChange={setActiveLocale}
+            value={activeLocale}
+          />
+        </Grid>
       </Grid>
       <Grid>
         <TextField
@@ -196,6 +180,7 @@ export default function JourneyTemplate(
       {(searchMediaItems || searchIiifImages || searchUploads) && (
         <Grid>
           <LocalizedMediaSelectionField
+            activeLocaleIsRtl={activeLocaleIsRtl}
             dialogContainer={dialogContainer}
             keepSameLabel={t('journey_media_keep_same')}
             labelAr={t('journey_media_ar')}
