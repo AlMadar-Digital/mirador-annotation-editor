@@ -85,57 +85,57 @@ function JourneyPoiList({
 
   // A journey with no pois yet rendered a literally childless <ul> - real in the DOM, but with
   // no height/border/content, indistinguishable from nothing being there and far too small a
-  // drop target (sortablejs's own emptyInsertThreshold pads its collapsed, near-zero-height
-  // rect by only 5px - see Sortable.js's _detectNearestEmptySortable). Stacking a real-sized
-  // placeholder in the same grid cell (rather than adding a DOM child to the <ul> itself) fixes
-  // both without disturbing sortablejs's "this list has zero children" empty-list detection,
-  // which stops working the moment the <ul> gains any child node of its own (issue #377).
+  // drop target. A first attempt (issue #377) left the <ul> truly childless and stacked a
+  // decorative overlay next to it, relying on sortablejs's own "totally empty list" detection
+  // (Sortable.js's emptyInsertThreshold/_detectNearestEmptySortable) to accept a drop - that
+  // path turned out unreliable in practice (the drop zone highlights on hover but the dropped
+  // item snaps back instead of landing). Rendering a REAL placeholder <li> instead keeps the
+  // list permanently non-empty from sortablejs's point of view, so a drop lands via the
+  // ordinary, far more exercised "insert after the last child" codepath instead. `filter`
+  // excludes it from being picked up as a draggable item; it disappears once a real poi exists.
   const isEmpty = localPois.length === 0;
 
   return (
-    <div style={{ display: 'grid' }}>
-      <ReactSortable
-        animation={150}
-        forceFallback
-        group={JOURNEY_GROUP}
-        list={localPois}
-        onEnd={handleDragEnd}
-        onStart={handleDragStart}
-        setList={handleSetList}
-        tag="ul"
-        style={{
-          border: isEmpty ? '1px dashed rgba(0, 0, 0, 0.15)' : 'none',
-          borderRadius: 4,
-          boxSizing: 'border-box',
-          gridArea: '1 / 1',
-          listStyle: 'none',
-          margin: 0,
-          minHeight: isEmpty ? 36 : undefined,
-          paddingInlineStart: 24,
-        }}
-      >
-        {localPois.map((poi) => (
-          <li key={poi.id} style={{ listStyle: 'none' }} data-kind="POI">
-            {renderRow(poi)}
-          </li>
-        ))}
-      </ReactSortable>
+    <ReactSortable
+      animation={150}
+      filter=".mae-journey-drop-placeholder"
+      forceFallback
+      group={JOURNEY_GROUP}
+      list={localPois}
+      onEnd={handleDragEnd}
+      onStart={handleDragStart}
+      setList={handleSetList}
+      tag="ul"
+      style={{ listStyle: 'none', margin: 0, paddingInlineStart: 24 }}
+    >
       {isEmpty && (
-        <Typography
-          variant="caption"
-          sx={{
-            alignSelf: 'center',
-            color: 'text.disabled',
+        <li
+          key="__drop-placeholder__"
+          className="mae-journey-drop-placeholder"
+          style={{
+            alignItems: 'center',
+            border: '1px dashed rgba(0, 0, 0, 0.15)',
+            borderRadius: 4,
+            boxSizing: 'border-box',
+            color: 'rgba(0, 0, 0, 0.4)',
+            display: 'flex',
             fontStyle: 'italic',
-            gridArea: '1 / 1',
-            paddingInlineStart: '24px',
-            pointerEvents: 'none',
+            listStyle: 'none',
+            minHeight: 36,
+            padding: '0 8px',
           }}
         >
-          {t('poi_drop_placeholder')}
-        </Typography>
+          <Typography variant="caption" sx={{ color: 'inherit', fontStyle: 'inherit' }}>
+            {t('poi_drop_placeholder')}
+          </Typography>
+        </li>
       )}
-    </div>
+      {localPois.map((poi) => (
+        <li key={poi.id} style={{ listStyle: 'none' }} data-kind="POI">
+          {renderRow(poi)}
+        </li>
+      ))}
+    </ReactSortable>
   );
 }
 
