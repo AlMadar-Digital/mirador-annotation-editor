@@ -134,6 +134,14 @@ function JourneyPoiList({
   return (
     <ReactSortable
       animation={150}
+      // `filter` alone only stops the placeholder being picked UP as the dragged item -
+      // sortablejs still treats it as a normal swappable sibling (its default `draggable`
+      // selector matches every `>li`), so a dragged poi hovering nearby would shift/swap
+      // positions with it exactly like a real row. Narrowing `draggable` to exclude it makes
+      // sortablejs ignore it entirely for insert/swap-target calculations - it becomes purely
+      // decorative, and a drop lands via the ordinary "insert after the (real) last child"
+      // logic instead.
+      draggable=">li:not(.mae-journey-drop-placeholder)"
       filter=".mae-journey-drop-placeholder"
       forceFallback
       group={JOURNEY_GROUP}
