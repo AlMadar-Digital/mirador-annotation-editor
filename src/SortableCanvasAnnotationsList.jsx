@@ -95,6 +95,42 @@ function JourneyPoiList({
   // excludes it from being picked up as a draggable item; it disappears once a real poi exists.
   const isEmpty = localPois.length === 0;
 
+  // react-sortablejs's own getChildren() maps over `children` positionally against the `list`
+  // prop, and only guards `child === undefined` - not the `false`/gap a conditional JSX child
+  // (`{isEmpty && <li/>}`) leaves in that array whenever a journey ISN'T empty, which crashed
+  // reading `.props` off it for every non-empty journey (issue #377 regression). Building one
+  // flat array of real elements up front - present only when actually needed - avoids that gap
+  // entirely.
+  const children = [
+    ...(isEmpty ? [(
+      <li
+        key="__drop-placeholder__"
+        className="mae-journey-drop-placeholder"
+        style={{
+          alignItems: 'center',
+          border: '1px dashed rgba(0, 0, 0, 0.15)',
+          borderRadius: 4,
+          boxSizing: 'border-box',
+          color: 'rgba(0, 0, 0, 0.4)',
+          display: 'flex',
+          fontStyle: 'italic',
+          listStyle: 'none',
+          minHeight: 36,
+          padding: '0 8px',
+        }}
+      >
+        <Typography variant="caption" sx={{ color: 'inherit', fontStyle: 'inherit' }}>
+          {t('poi_drop_placeholder')}
+        </Typography>
+      </li>
+    )] : []),
+    ...localPois.map((poi) => (
+      <li key={poi.id} style={{ listStyle: 'none' }} data-kind="POI">
+        {renderRow(poi)}
+      </li>
+    )),
+  ];
+
   return (
     <ReactSortable
       animation={150}
@@ -108,33 +144,7 @@ function JourneyPoiList({
       tag="ul"
       style={{ listStyle: 'none', margin: 0, paddingInlineStart: 24 }}
     >
-      {isEmpty && (
-        <li
-          key="__drop-placeholder__"
-          className="mae-journey-drop-placeholder"
-          style={{
-            alignItems: 'center',
-            border: '1px dashed rgba(0, 0, 0, 0.15)',
-            borderRadius: 4,
-            boxSizing: 'border-box',
-            color: 'rgba(0, 0, 0, 0.4)',
-            display: 'flex',
-            fontStyle: 'italic',
-            listStyle: 'none',
-            minHeight: 36,
-            padding: '0 8px',
-          }}
-        >
-          <Typography variant="caption" sx={{ color: 'inherit', fontStyle: 'inherit' }}>
-            {t('poi_drop_placeholder')}
-          </Typography>
-        </li>
-      )}
-      {localPois.map((poi) => (
-        <li key={poi.id} style={{ listStyle: 'none' }} data-kind="POI">
-          {renderRow(poi)}
-        </li>
-      ))}
+      {children}
     </ReactSortable>
   );
 }
