@@ -352,7 +352,9 @@ describe('POITemplate (render)', () => {
   it('saves an unmodified, real Strapi-loaded POI without a target error (issue #377 review comment: "open in edition a POI, change nothing, save, it\'s not possible to close")', () => {
     // Mirrors what StrapiAnnotationAdapter actually hands POITemplate: no maeData of its own
     // (Strapi never round-trips it - see that adapter's own comment) and a real MAE-saved
-    // target's SvgSelector, whose marker is a plain <circle> (see PoiNode.jsx) - not the
+    // target's SvgSelector. No <circle> element on purpose - getSvg's real export
+    // (react-konva-to-svg -> svgcanvas) traces every shape, POI markers included, as a generic
+    // <path>, never a literal <circle> tag - see convertPoiSvgSelectorToMae's own doc. Not the
     // synthetic already-maeData'd fixtures every other test in this file uses.
     const strapiLoadedAnnotation = convertIIIFAnnoToMaeData({
       body: [
@@ -365,7 +367,7 @@ describe('POITemplate (render)', () => {
       motivation: 'identifying',
       target: {
         selector: [
-          { type: 'SvgSelector', value: "<svg xmlns='http://www.w3.org/2000/svg' width='800' height='600'><circle cx='10' cy='20' r='5' fill='#e53935' stroke='#ffffff'/></svg>" },
+          { type: 'SvgSelector', value: "<svg xmlns='http://www.w3.org/2000/svg' width='800' height='600'><path fill='#e53935' stroke='#ffffff' d='M10 20 A5 5 0 1 1 10 20.001 Z'/></svg>" },
           { type: 'FragmentSelector', value: 'canvas1#' },
         ],
       },

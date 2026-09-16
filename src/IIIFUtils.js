@@ -345,35 +345,45 @@ const convertFragmentSelectorToMae = (selector) => {
 };
 
 /**
- * Reconstructs a POI/NestedMap point's `maeData.target` from its saved SvgSelector: PoiNode
- * always renders the marker as a plain Konva `<Circle>` (see PoiNode.jsx), so the SVG this was
- * exported from (finalizeSpatialTarget -> getSvg) always contains a `<circle cx cy r>` for it -
- * unlike the generic bounding-box reconstruction below, this must produce a SHAPES_TOOL.POI
- * shape (not RECTANGLE), or every reopened POI/NestedMap fails isValidPointTarget's type check
- * and blocks save with "you must choose a target" even though a marker was already placed and
- * nothing was touched (issue #377 review comment). Colors come from POI_MARKER_STYLE, the same
- * fixed, non-configurable appearance PoiNode itself uses - not from the SVG, since a POI marker
- * carries no size/style knobs to round-trip.
- * @param {Element} circleEl
+ * Reconstructs a POI/NestedMap point's `maeData.target` from its saved SvgSelector as a
+ * SHAPES_TOOL.POI shape (not RECTANGLE) - a POI/NestedMap's target is, by construction, always
+ * exactly one placed marker (TargetPointInput/PoiNode - no shared toolbar, no other drawable
+ * shape is ever possible for these two templates), so this never needs to inspect the SVG's
+ * markup to tell what shape it is; unlike the generic reconstruction below, it must not produce
+ * RECTANGLE here, or every reopened POI/NestedMap fails isValidPointTarget's type check and
+ * blocks save with "you must choose a target" even though a marker was already placed and
+ * nothing was touched (issue #377 review comment).
+ *
+ * Deliberately does NOT look for a literal `<circle>` element: `getSvg`'s underlying export
+ * (react-konva-to-svg -> svgcanvas, which shims the Canvas2D API) traces every shape - including
+ * a Konva Circle - as a generic `<path>` built from arc/line-to draw calls, exactly like every
+ * other shape type. There is no `<circle>` tag to find in the real, non-mocked output; the
+ * bounding box is the only reliable signal, and a circle's bbox is always a square centered on
+ * it, so `radius = max(width, height) / 2` and center = bbox center recover it exactly.
+ *
+ * Colors come from POI_MARKER_STYLE, the same fixed, non-configurable appearance PoiNode itself
+ * uses - not from the SVG, since a POI marker carries no size/style knobs to round-trip.
+ * @param {XMLDocument} svgDoc
  * @param {string} svgValue
  * @returns {object} maeTarget
  */
-const convertPoiCircleSelectorToMae = (circleEl, svgValue) => {
+const convertPoiSvgSelectorToMae = (svgDoc, svgValue) => {
+  const xywh = svgToXywh(svgDoc);
   const currentShape = {
     fill: POI_MARKER_STYLE.fill,
     id: uuidv4(),
-    radius: parseFloat(circleEl.getAttribute('r')) || 0,
+    radius: Math.max(xywh.width, xywh.height) / 2,
     rotation: 0,
     scaleX: 1,
     scaleY: 1,
     stroke: POI_MARKER_STYLE.stroke,
     strokeWidth: POI_MARKER_STYLE.strokeWidth,
     type: SHAPES_TOOL.POI,
-    x: parseFloat(circleEl.getAttribute('cx')) || 0,
-    y: parseFloat(circleEl.getAttribute('cy')) || 0,
+    x: xywh.x + xywh.width / 2,
+    y: xywh.y + xywh.height / 2,
   };
 
-  return {
+  const maeTarget = {
     drawingState: JSON.stringify({
       currentShape,
       isDrawing: false,
@@ -381,15 +391,21 @@ const convertPoiCircleSelectorToMae = (circleEl, svgValue) => {
     }),
     svg: svgValue,
   };
+
+  const fullW = svgDoc.querySelector('svg').getAttribute('width') || undefined;
+  const fullH = svgDoc.querySelector('svg').getAttribute('height') || undefined;
+  if (fullW && fullH) {
+    maeTarget.fullCanvaXYWH = `0,0,${fullW},${fullH}`;
+  }
+
+  return maeTarget;
 };
 
 /**
  * @param {{ type: string, value: string }} selector
- * @param {string} [templateType] - when POI_TYPE/NESTED_MAP_TYPE, a `<circle>` in the SVG is the
- *   fixed POI marker (see convertPoiCircleSelectorToMae) rather than a user-drawn Circle shape
- *   (SHAPES_TOOL.CIRCLE, available from the general shape toolbar on other spatial-target
- *   templates) - this must not run for those, or a real drawn circle would be misreconstructed
- *   as a POI marker on reload.
+ * @param {string} [templateType] - when POI_TYPE/NESTED_MAP_TYPE, reconstructs a POI marker
+ *   (see convertPoiSvgSelectorToMae) instead of the generic rectangle bounding box below - those
+ *   two templates' target is always exactly one placed marker, never any other drawable shape.
  * @returns {object} maeTarget
  */
 const convertSvgSelectorToMae = (selector, templateType) => {
@@ -397,10 +413,7 @@ const convertSvgSelectorToMae = (selector, templateType) => {
   const svgDoc = parser.parseFromString(selector.value, 'image/svg+xml');
 
   if (templateType === TEMPLATE.POI_TYPE || templateType === TEMPLATE.NESTED_MAP_TYPE) {
-    const circleEl = svgDoc.querySelector('circle');
-    if (circleEl) {
-      return convertPoiCircleSelectorToMae(circleEl, selector.value);
-    }
+    return convertPoiSvgSelectorToMae(svgDoc, selector.value);
   }
 
   const xywh = svgToXywh(svgDoc);

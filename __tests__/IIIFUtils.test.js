@@ -405,66 +405,6 @@ describe('convertIIIFAnnoToMaeData', () => {
     expect(result.maeData.target.svg).toContain('<svg');
   });
 
-  it('rebuilds a POI\'s maeData.target as a SHAPES_TOOL.POI marker from its <circle> SvgSelector, not the generic rectangle bounding box (issue #377 review comment)', () => {
-    const anno = {
-      'dbf:kind': 'POI',
-      id: 'anno1',
-      motivation: 'identifying',
-      target: {
-        selector: [
-          { type: 'SvgSelector', value: "<svg xmlns='http://www.w3.org/2000/svg' width='800' height='600'><circle cx='123.4' cy='56.7' r='10' fill='#e53935' stroke='#ffffff'/></svg>" },
-          { type: 'FragmentSelector', value: 'canvas1#' },
-        ],
-      },
-    };
-
-    const result = convertIIIFAnnoToMaeData(anno);
-    const drawingState = JSON.parse(result.maeData.target.drawingState);
-
-    expect(drawingState.shapes).toHaveLength(1);
-    expect(drawingState.shapes[0]).toMatchObject({
-      radius: 10, type: SHAPES_TOOL.POI, x: 123.4, y: 56.7,
-    });
-    expect(drawingState.currentShape).toMatchObject({ type: SHAPES_TOOL.POI });
-  });
-
-  it('rebuilds a NestedMap point\'s maeData.target as SHAPES_TOOL.POI too (issue #350: shares POI\'s target shape)', () => {
-    const anno = {
-      'dbf:kind': 'POI',
-      'dbf:linkedMap': { id: 'map-7', titleEn: 'Old City' },
-      id: 'anno1',
-      motivation: 'identifying',
-      target: {
-        selector: [
-          { type: 'SvgSelector', value: "<svg xmlns='http://www.w3.org/2000/svg' width='800' height='600'><circle cx='1' cy='2' r='5'/></svg>" },
-        ],
-      },
-    };
-
-    const result = convertIIIFAnnoToMaeData(anno);
-    const drawingState = JSON.parse(result.maeData.target.drawingState);
-
-    expect(drawingState.shapes[0].type).toBe(SHAPES_TOOL.POI);
-  });
-
-  it('still reconstructs a non-POI template\'s <circle> SvgSelector as a rectangle bounding box (issue #21: the generic Circle shape tool is unrelated to the POI marker)', () => {
-    const anno = {
-      bodyValue: 'x',
-      id: 'anno1',
-      target: {
-        selector: {
-          type: 'SvgSelector',
-          value: "<svg xmlns='http://www.w3.org/2000/svg' width='800' height='600'><circle cx='1' cy='2' r='5'/></svg>",
-        },
-      },
-    };
-
-    const result = convertIIIFAnnoToMaeData(anno);
-    const drawingState = JSON.parse(result.maeData.target.drawingState);
-
-    expect(drawingState.shapes[0].type).toBe(SHAPES_TOOL.RECTANGLE);
-  });
-
   describe('with a stubbed SVGGraphicsElement.getBBox', () => {
     // happy-dom's SVGGraphicsElement.getBBox is a stub that always returns a zero rect:
     // override it so the (real-browser-only) bbox extraction path is exercised deterministically.
@@ -498,6 +438,66 @@ describe('convertIIIFAnnoToMaeData', () => {
         fill: 'red', height: 40, stroke: 'blue', width: 30, x: 5, y: 6,
       });
       expect(result.maeData.target.fullCanvaXYWH).toBe('0,0,800,600');
+    });
+
+    it('rebuilds a POI\'s maeData.target as a SHAPES_TOOL.POI marker centered on the bounding box, not the generic RECTANGLE reconstruction (issue #377 review comment)', () => {
+      // No <circle> element on purpose: getSvg's real export (react-konva-to-svg -> svgcanvas)
+      // traces every Konva shape, POI markers included, as a generic <path> - never a literal
+      // <circle> tag - so a fixture that only contains one is not representative of what this
+      // actually has to parse in production. See convertPoiSvgSelectorToMae's own doc.
+      const svg = "<svg xmlns='http://www.w3.org/2000/svg' width='800' height='600'><path fill='#e53935' stroke='#ffffff' d='M0 0 A10 10 0 1 1 0 0.001 Z'/></svg>";
+      const anno = {
+        'dbf:kind': 'POI',
+        id: 'anno1',
+        motivation: 'identifying',
+        target: {
+          selector: [
+            { type: 'SvgSelector', value: svg },
+            { type: 'FragmentSelector', value: 'canvas1#' },
+          ],
+        },
+      };
+
+      const result = convertIIIFAnnoToMaeData(anno);
+      const drawingState = JSON.parse(result.maeData.target.drawingState);
+
+      // Stubbed bbox above is { height: 40, width: 30, x: 5, y: 6 } - center (5+15, 6+20),
+      // radius = max(30, 40) / 2.
+      expect(drawingState.shapes).toHaveLength(1);
+      expect(drawingState.shapes[0]).toMatchObject({
+        radius: 20, type: SHAPES_TOOL.POI, x: 20, y: 26,
+      });
+      expect(drawingState.currentShape).toMatchObject({ type: SHAPES_TOOL.POI });
+    });
+
+    it('rebuilds a NestedMap point\'s maeData.target as SHAPES_TOOL.POI too (issue #350: shares POI\'s target shape)', () => {
+      const svg = "<svg xmlns='http://www.w3.org/2000/svg' width='800' height='600'><path d='M0 0'/></svg>";
+      const anno = {
+        'dbf:kind': 'POI',
+        'dbf:linkedMap': { id: 'map-7', titleEn: 'Old City' },
+        id: 'anno1',
+        motivation: 'identifying',
+        target: { selector: [{ type: 'SvgSelector', value: svg }] },
+      };
+
+      const result = convertIIIFAnnoToMaeData(anno);
+      const drawingState = JSON.parse(result.maeData.target.drawingState);
+
+      expect(drawingState.shapes[0].type).toBe(SHAPES_TOOL.POI);
+    });
+
+    it('still reconstructs a non-POI template\'s SvgSelector as a rectangle bounding box (only POI/NestedMap ever reconstruct as a marker)', () => {
+      const svg = "<svg xmlns='http://www.w3.org/2000/svg' width='800' height='600'><path d='M0 0'/></svg>";
+      const anno = {
+        bodyValue: 'x',
+        id: 'anno1',
+        target: { selector: { type: 'SvgSelector', value: svg } },
+      };
+
+      const result = convertIIIFAnnoToMaeData(anno);
+      const drawingState = JSON.parse(result.maeData.target.drawingState);
+
+      expect(drawingState.shapes[0].type).toBe(SHAPES_TOOL.RECTANGLE);
     });
 
     it('falls back to returning `{}` for a non-XML/hostile SvgSelector value', () => {
