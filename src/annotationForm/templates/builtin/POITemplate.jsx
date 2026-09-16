@@ -15,7 +15,7 @@ import { TEMPLATE } from '../../AnnotationFormUtils';
 import { resizeKonvaStage, SHAPES_TOOL } from '../../AnnotationFormOverlay/KonvaDrawing/KonvaUtils';
 import { finalizeSpatialTarget, getDefaultValue, isEmptyValue } from '../../../IIIFUtils';
 import { templateKit } from '../kit';
-import { MediaSelectionField } from '../templateComponents/MediaSelectionField';
+import { LocalizedMediaSelectionField } from '../templateComponents/LocalizedMediaSelectionField';
 import { RichTextField } from '../templateComponents/RichTextField';
 
 const { AnnotationFormFooter, TargetFormSection } = templateKit;
@@ -56,8 +56,9 @@ export const getLocaleContent = (contentByLocale, locale) => contentByLocale[loc
  * language - see applyPoiBodyConversion) back into a per-locale content map for a form to bind
  * to. Shared by POITemplate and NestedMapTemplate - both save/rehydrate the exact same
  * title/description shape (issue #350: a nested-map point "shares the same information as
- * POI"). Media (`dbf:media`, issue #391) is not part of this - it's a root-level annotation
- * extension, not tied to a language, same as `dbf:linkedMap` (see NestedMapTemplate).
+ * POI"). Media (`dbf:mediaEn`/`dbf:mediaAr`, issue #377) is not part of this - each is its own
+ * root-level annotation extension, not tied to the title/description body, same as
+ * `dbf:linkedMap` (see NestedMapTemplate).
  * @param {object[]} body
  * @returns {object} contentByLocale
  */
@@ -114,16 +115,16 @@ export const isValidPointTarget = (maeData) => {
  * typed anything) is simply absent from the saved body - it is not re-saved as an empty
  * translation.
  *
- * Media (`dbf:media`), journey membership (`dbf:journey`), and cross-map linking
- * (`dbf:linkedMap`) are deliberately NOT read or written here: `dbf:media` is set directly on
- * `state` by MediaSelectionField's onChange (see updateMedia in POITemplate/JourneyTemplate/
- * NestedMapTemplate - issue #391, mirrors how NestedMapTemplate already threads `dbf:linkedMap`
- * through), and journey/linkedMap are relations managed from the Strapi backoffice, not from the
- * annotation editor. `stateToSave` is the same object as `state` (mutated in place, matching
- * every other template's convention), so whatever dbf:media/dbf:journey/dbf:linkedMap the
- * annotation already carried when it was loaded survives untouched into the saved result -
- * editing a POI's title/description/target in MAE must never silently drop its existing
- * relations.
+ * Media (`dbf:mediaEn`/`dbf:mediaAr`), journey membership (`dbf:journey`), and cross-map linking
+ * (`dbf:linkedMap`) are deliberately NOT read or written here: each media field is set directly
+ * on `state` by LocalizedMediaSelectionField's onChangeEn/onChangeAr (see updateMediaEn/
+ * updateMediaAr in POITemplate/JourneyTemplate/NestedMapTemplate - issue #377, mirrors how
+ * NestedMapTemplate already threads `dbf:linkedMap` through), and journey/linkedMap are
+ * relations managed from the Strapi backoffice, not from the annotation editor. `stateToSave`
+ * is the same object as `state` (mutated in place, matching every other template's convention),
+ * so whatever dbf:mediaEn/dbf:mediaAr/dbf:journey/dbf:linkedMap the annotation already carried
+ * when it was loaded survives untouched into the saved result - editing a POI's
+ * title/description/target in MAE must never silently drop its existing relations.
  * @param {object} state
  * @returns {object} the same state, mutated
  */
@@ -187,7 +188,8 @@ export default function POITemplate(
     maeAnnotation = {
       body: [],
       'dbf:kind': 'POI',
-      'dbf:media': null,
+      'dbf:mediaAr': null,
+      'dbf:mediaEn': null,
       maeData: {
         contentByLocale: {},
         target: null,
@@ -210,10 +212,11 @@ export default function POITemplate(
     // parseContentByLocale's own doc for the "first describing item per locale wins" rule this
     // mirrors from annotationConversion.ts server-side).
     maeAnnotation.maeData.contentByLocale = parseContentByLocale(maeAnnotation.body);
-    // dbf:media is read directly off maeAnnotation below (see `annotationState['dbf:media']`) -
-    // no rehydration needed here since it's not stored in the body. dbf:journey / dbf:linkedMap
-    // (if present) are intentionally left untouched on maeAnnotation itself - not read into
-    // maeData, since there is no UI here to edit them.
+    // dbf:mediaEn/dbf:mediaAr are read directly off maeAnnotation below (see
+    // `annotationState['dbf:mediaEn']`/`['dbf:mediaAr']`) - no rehydration needed here since
+    // neither is stored in the body. dbf:journey / dbf:linkedMap (if present) are intentionally
+    // left untouched on maeAnnotation itself - not read into maeData, since there is no UI here
+    // to edit them.
   }
 
   const [annotationState, setAnnotationState] = useState(maeAnnotation);
@@ -265,14 +268,26 @@ export default function POITemplate(
     });
   };
 
-  /** Update the attached media, or clear it (media is `null`) - a root-level annotation
-   * extension, not tied to a language (issue #391), same pattern as NestedMapTemplate's
-   * updateLinkedMap for `dbf:linkedMap`. */
-  const updateMedia = (media) => {
-    setAnnotationState({
-      ...annotationState,
-      'dbf:media': media,
-    });
+  /** Update the attached English/Arabic media, or clear it (media is `null`) - each is its own
+   * root-level annotation extension (issue #377), same pattern as NestedMapTemplate's
+   * updateLinkedMap for `dbf:linkedMap`. Mirroring one into the other while "Keep same media" is
+   * checked is LocalizedMediaSelectionField's own concern, not this - it calls both of these in
+   * the same handler, so both use the functional setState form (unlike this file's other
+   * updaters) to avoid the second call clobbering the first with a stale `annotationState`
+   * closure before React re-renders between them. */
+  const updateMediaEn = (media) => {
+    setAnnotationState((prev) => ({
+      ...prev,
+      'dbf:mediaEn': media,
+    }));
+  };
+
+  /** Update the attached Arabic media - see updateMediaEn's own doc. */
+  const updateMediaAr = (media) => {
+    setAnnotationState((prev) => ({
+      ...prev,
+      'dbf:mediaAr': media,
+    }));
   };
 
   /** Save function * */
@@ -343,15 +358,19 @@ export default function POITemplate(
       </Grid>
       {(searchMediaItems || searchIiifImages || searchUploads) && (
         <Grid>
-          <MediaSelectionField
+          <LocalizedMediaSelectionField
             dialogContainer={dialogContainer}
-            label={t('poi_media')}
-            onChange={updateMedia}
+            keepSameLabel={t('poi_media_keep_same')}
+            labelAr={t('poi_media_ar')}
+            labelEn={t('poi_media_en')}
+            mediaAr={annotationState['dbf:mediaAr'] ?? null}
+            mediaEn={annotationState['dbf:mediaEn'] ?? null}
+            onChangeAr={updateMediaAr}
+            onChangeEn={updateMediaEn}
             onSearchIiifImages={searchIiifImages}
             onSearchMediaItems={searchMediaItems}
             onSearchUploads={searchUploads}
             t={t}
-            value={annotationState['dbf:media'] ?? null}
           />
         </Grid>
       )}

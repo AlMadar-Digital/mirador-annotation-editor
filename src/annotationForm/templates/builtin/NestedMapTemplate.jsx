@@ -15,7 +15,7 @@ import { TEMPLATE } from '../../AnnotationFormUtils';
 import { resizeKonvaStage } from '../../AnnotationFormOverlay/KonvaDrawing/KonvaUtils';
 import { finalizeSpatialTarget } from '../../../IIIFUtils';
 import { templateKit } from '../kit';
-import { MediaSelectionField } from '../templateComponents/MediaSelectionField';
+import { LocalizedMediaSelectionField } from '../templateComponents/LocalizedMediaSelectionField';
 import { MapRelationField } from '../templateComponents/MapRelationField';
 import { RichTextField } from '../templateComponents/RichTextField';
 import {
@@ -70,7 +70,8 @@ export default function NestedMapTemplate(
       body: [],
       'dbf:kind': 'POI',
       'dbf:linkedMap': null,
-      'dbf:media': null,
+      'dbf:mediaAr': null,
+      'dbf:mediaEn': null,
       maeData: {
         contentByLocale: {},
         target: null,
@@ -143,13 +144,22 @@ export default function NestedMapTemplate(
     });
   };
 
-  /** Update the attached media, or clear it (media is `null`) - issue #391, same pattern as
-   * updateLinkedMap above. */
-  const updateMedia = (media) => {
-    setAnnotationState({
-      ...annotationState,
-      'dbf:media': media,
-    });
+  /** Update the attached English/Arabic media, or clear it (media is `null`) - issue #377, same
+   * pattern as updateLinkedMap above. Uses the functional setState form - see POITemplate's
+   * matching updateMediaEn/updateMediaAr comment for why. */
+  const updateMediaEn = (media) => {
+    setAnnotationState((prev) => ({
+      ...prev,
+      'dbf:mediaEn': media,
+    }));
+  };
+
+  /** Update the attached Arabic media - see updateMediaEn's own doc. */
+  const updateMediaAr = (media) => {
+    setAnnotationState((prev) => ({
+      ...prev,
+      'dbf:mediaAr': media,
+    }));
   };
 
   /** Save function * */
@@ -217,15 +227,19 @@ export default function NestedMapTemplate(
       </Grid>
       {(searchMediaItems || searchIiifImages || searchUploads) && (
         <Grid>
-          <MediaSelectionField
+          <LocalizedMediaSelectionField
             dialogContainer={dialogContainer}
-            label={t('poi_media')}
-            onChange={updateMedia}
+            keepSameLabel={t('poi_media_keep_same')}
+            labelAr={t('poi_media_ar')}
+            labelEn={t('poi_media_en')}
+            mediaAr={annotationState['dbf:mediaAr'] ?? null}
+            mediaEn={annotationState['dbf:mediaEn'] ?? null}
+            onChangeAr={updateMediaAr}
+            onChangeEn={updateMediaEn}
             onSearchIiifImages={searchIiifImages}
             onSearchMediaItems={searchMediaItems}
             onSearchUploads={searchUploads}
             t={t}
-            value={annotationState['dbf:media'] ?? null}
           />
         </Grid>
       )}
