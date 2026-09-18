@@ -84,6 +84,8 @@ export const fr = {
   poi_description_placeholder: 'Décrivez ce point d\'intérêt…',
   poi_description_section: 'Description',
   poi_language: "Langue",
+  poi_latitude: 'Latitude',
+  poi_longitude: 'Longitude',
   poi_media_ar: 'Média (arabe)',
   poi_media_en: 'Média (anglais)',
   poi_media_keep_same: 'Utiliser le même média pour les deux langues',

@@ -817,4 +817,83 @@ describe('POITemplate (render)', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'save' })).not.toBeDisabled());
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
   });
+
+  it('starts with empty latitude/longitude fields for a new annotation', () => {
+    renderPoiTemplate();
+
+    expect(screen.getByLabelText('poi_latitude')).toHaveValue(null);
+    expect(screen.getByLabelText('poi_longitude')).toHaveValue(null);
+  });
+
+  it('lets the editor type a latitude and longitude, saved as root-level dbf:latitude/dbf:longitude', () => {
+    const saveAnnotation = vi.fn();
+    renderPoiTemplate({
+      body: [],
+      'dbf:kind': 'POI',
+      id: 'canvas1/annotation/1',
+      maeData: {
+        target: { drawingState: JSON.stringify({ shapes: [poiShape()] }) },
+        templateType: 'poi',
+      },
+      motivation: 'identifying',
+      target: {
+        selector: [{ type: 'SvgSelector', value: '<svg><circle cx="10" cy="20" r="5"/></svg>' }],
+        source: 'canvas1',
+      },
+    }, saveAnnotation);
+
+    fireEvent.change(screen.getByLabelText('poi_latitude'), { target: { value: '31.7767' } });
+    fireEvent.change(screen.getByLabelText('poi_longitude'), { target: { value: '35.2345' } });
+    fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+    expect(saveAnnotation).toHaveBeenCalledWith(
+      expect.objectContaining({ 'dbf:latitude': 31.7767, 'dbf:longitude': 35.2345 }),
+    );
+  });
+
+  it('rehydrates latitude/longitude from an existing annotation\'s dbf:latitude/dbf:longitude', () => {
+    renderPoiTemplate({
+      body: [],
+      'dbf:kind': 'POI',
+      'dbf:latitude': 31.7767,
+      'dbf:longitude': 35.2345,
+      id: 'canvas1/annotation/1',
+      maeData: {
+        target: { drawingState: JSON.stringify({ shapes: [poiShape()] }) },
+        templateType: 'poi',
+      },
+      motivation: 'identifying',
+      target: {
+        selector: [{ type: 'SvgSelector', value: '<svg><circle cx="10" cy="20" r="5"/></svg>' }],
+        source: 'canvas1',
+      },
+    });
+
+    expect(screen.getByLabelText('poi_latitude')).toHaveValue(31.7767);
+    expect(screen.getByLabelText('poi_longitude')).toHaveValue(35.2345);
+  });
+
+  it('clears latitude back to null when the field is emptied', () => {
+    const saveAnnotation = vi.fn();
+    renderPoiTemplate({
+      body: [],
+      'dbf:kind': 'POI',
+      'dbf:latitude': 31.7767,
+      id: 'canvas1/annotation/1',
+      maeData: {
+        target: { drawingState: JSON.stringify({ shapes: [poiShape()] }) },
+        templateType: 'poi',
+      },
+      motivation: 'identifying',
+      target: {
+        selector: [{ type: 'SvgSelector', value: '<svg><circle cx="10" cy="20" r="5"/></svg>' }],
+        source: 'canvas1',
+      },
+    }, saveAnnotation);
+
+    fireEvent.change(screen.getByLabelText('poi_latitude'), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+    expect(saveAnnotation).toHaveBeenCalledWith(expect.objectContaining({ 'dbf:latitude': null }));
+  });
 });

@@ -277,4 +277,28 @@ describe('NestedMapTemplate (render)', () => {
     expect(screen.queryByText('nested_map_linked_map_required')).not.toBeInTheDocument();
     expect(saveAnnotation).toHaveBeenCalled();
   });
+
+  it('lets the editor type a latitude and longitude, saved as root-level dbf:latitude/dbf:longitude', () => {
+    const saveAnnotation = vi.fn();
+    renderNestedMapTemplate(baseNestedMapState(), saveAnnotation);
+
+    fireEvent.change(screen.getByLabelText('poi_latitude'), { target: { value: '31.7767' } });
+    fireEvent.change(screen.getByLabelText('poi_longitude'), { target: { value: '35.2345' } });
+    fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+    expect(saveAnnotation).toHaveBeenCalledWith(
+      expect.objectContaining({ 'dbf:latitude': 31.7767, 'dbf:longitude': 35.2345 }),
+    );
+  });
+
+  it('rehydrates latitude/longitude from an existing annotation\'s dbf:latitude/dbf:longitude', () => {
+    renderNestedMapTemplate({
+      ...baseNestedMapState(),
+      'dbf:latitude': 31.7767,
+      'dbf:longitude': 35.2345,
+    });
+
+    expect(screen.getByLabelText('poi_latitude')).toHaveValue(31.7767);
+    expect(screen.getByLabelText('poi_longitude')).toHaveValue(35.2345);
+  });
 });

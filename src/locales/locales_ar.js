@@ -84,6 +84,8 @@ export const ar = {
   poi_description_placeholder: "صف نقطة الاهتمام هذه…",
   poi_description_section: "الوصف",
   poi_language: "اللغة",
+  poi_latitude: "خط العرض",
+  poi_longitude: "خط الطول",
   poi_media_ar: "الوسائط (عربي)",
   poi_media_en: "الوسائط (إنجليزي)",
   poi_media_keep_same: "استخدام نفس الوسائط لكلا اللغتين",

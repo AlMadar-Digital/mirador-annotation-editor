@@ -64,7 +64,9 @@ export default function NestedMapTemplate(
     maeAnnotation = {
       body: [],
       'dbf:kind': 'POI',
+      'dbf:latitude': null,
       'dbf:linkedMap': null,
+      'dbf:longitude': null,
       'dbf:mediaAr': null,
       'dbf:mediaEn': null,
       maeData: {
@@ -140,6 +142,26 @@ export default function NestedMapTemplate(
     });
   };
 
+  /** Update the optional real-world latitude/longitude - see POITemplate's updateLatitude/
+   * updateLongitude for the shared doc. An empty input clears the field back to `null` rather
+   * than saving an empty string. */
+  const updateLatitude = (event) => {
+    const { value } = event.target;
+    setAnnotationState((prev) => ({
+      ...prev,
+      'dbf:latitude': value === '' ? null : Number(value),
+    }));
+  };
+
+  /** Update the optional real-world longitude - see updateLatitude's own doc. */
+  const updateLongitude = (event) => {
+    const { value } = event.target;
+    setAnnotationState((prev) => ({
+      ...prev,
+      'dbf:longitude': value === '' ? null : Number(value),
+    }));
+  };
+
   /** Save function * */
   const saveFunction = async () => {
     const validTarget = isValidPointTarget(annotationState.maeData);
@@ -200,6 +222,28 @@ export default function NestedMapTemplate(
             {t('poi_title_required')}
           </Typography>
         )}
+      </Grid>
+      <Grid container direction="row" spacing={2}>
+        <Grid size={6}>
+          <TextField
+            fullWidth
+            label={t('poi_latitude')}
+            type="number"
+            value={annotationState['dbf:latitude'] ?? ''}
+            variant="outlined"
+            onChange={updateLatitude}
+          />
+        </Grid>
+        <Grid size={6}>
+          <TextField
+            fullWidth
+            label={t('poi_longitude')}
+            type="number"
+            value={annotationState['dbf:longitude'] ?? ''}
+            variant="outlined"
+            onChange={updateLongitude}
+          />
+        </Grid>
       </Grid>
       <Grid>
         <Typography variant="formSectionTitle">{t('nested_map_linked_map')}</Typography>

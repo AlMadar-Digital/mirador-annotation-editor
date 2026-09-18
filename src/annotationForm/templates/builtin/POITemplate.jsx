@@ -211,6 +211,8 @@ export default function POITemplate(
     maeAnnotation = {
       body: [],
       'dbf:kind': 'POI',
+      'dbf:latitude': null,
+      'dbf:longitude': null,
       'dbf:mediaAr': null,
       'dbf:mediaEn': null,
       maeData: {
@@ -314,6 +316,26 @@ export default function POITemplate(
     }));
   };
 
+  /** Update the optional real-world latitude/longitude - each is its own root-level annotation
+   * extension (`dbf:latitude`/`dbf:longitude`), same pattern as updateMediaEn/updateMediaAr.
+   * An empty input clears the field back to `null` rather than saving an empty string. */
+  const updateLatitude = (event) => {
+    const { value } = event.target;
+    setAnnotationState((prev) => ({
+      ...prev,
+      'dbf:latitude': value === '' ? null : Number(value),
+    }));
+  };
+
+  /** Update the optional real-world longitude - see updateLatitude's own doc. */
+  const updateLongitude = (event) => {
+    const { value } = event.target;
+    setAnnotationState((prev) => ({
+      ...prev,
+      'dbf:longitude': value === '' ? null : Number(value),
+    }));
+  };
+
   /** Save function * */
   const saveFunction = async () => {
     const validTarget = isValidPointTarget(annotationState.maeData);
@@ -397,6 +419,28 @@ export default function POITemplate(
           />
         </Grid>
       )}
+      <Grid container direction="row" spacing={2}>
+        <Grid size={6}>
+          <TextField
+            fullWidth
+            label={t('poi_latitude')}
+            type="number"
+            value={annotationState['dbf:latitude'] ?? ''}
+            variant="outlined"
+            onChange={updateLatitude}
+          />
+        </Grid>
+        <Grid size={6}>
+          <TextField
+            fullWidth
+            label={t('poi_longitude')}
+            type="number"
+            value={annotationState['dbf:longitude'] ?? ''}
+            variant="outlined"
+            onChange={updateLongitude}
+          />
+        </Grid>
+      </Grid>
       <Grid>
         <Typography variant="formSectionTitle">{t('poi_description_section')}</Typography>
       </Grid>
