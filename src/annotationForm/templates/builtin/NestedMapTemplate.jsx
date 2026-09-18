@@ -17,6 +17,8 @@ import {
   getLocaleContent,
   isRtlLocale,
   isTitleFilled,
+  isValidLatitude,
+  isValidLongitude,
   isValidPointTarget,
   parseContentByLocale,
 } from './POITemplate';
@@ -92,6 +94,8 @@ export default function NestedMapTemplate(
   const [targetError, setTargetError] = useState(false);
   const [linkedMapError, setLinkedMapError] = useState(false);
   const [titleError, setTitleError] = useState(false);
+  const [latitudeError, setLatitudeError] = useState(false);
+  const [longitudeError, setLongitudeError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activeLocale, setActiveLocale] = useState(
     getDefaultActiveLocale(annotationState.maeData.contentByLocale, contentLocales),
@@ -167,10 +171,14 @@ export default function NestedMapTemplate(
     const validTarget = isValidPointTarget(annotationState.maeData);
     const validLinkedMap = Boolean(annotationState['dbf:linkedMap']);
     const validTitle = isTitleFilled(annotationState.maeData.contentByLocale, contentLocales);
+    const validLatitude = isValidLatitude(annotationState['dbf:latitude']);
+    const validLongitude = isValidLongitude(annotationState['dbf:longitude']);
     setTargetError(!validTarget);
     setLinkedMapError(!validLinkedMap);
     setTitleError(!validTitle);
-    if (!validTarget || !validLinkedMap || !validTitle) {
+    setLatitudeError(!validLatitude);
+    setLongitudeError(!validLongitude);
+    if (!validTarget || !validLinkedMap || !validTitle || !validLatitude || !validLongitude) {
       return;
     }
     resizeKonvaStage(
@@ -223,28 +231,6 @@ export default function NestedMapTemplate(
           </Typography>
         )}
       </Grid>
-      <Grid container direction="row" spacing={2}>
-        <Grid size={6}>
-          <TextField
-            fullWidth
-            label={t('poi_latitude')}
-            type="number"
-            value={annotationState['dbf:latitude'] ?? ''}
-            variant="outlined"
-            onChange={updateLatitude}
-          />
-        </Grid>
-        <Grid size={6}>
-          <TextField
-            fullWidth
-            label={t('poi_longitude')}
-            type="number"
-            value={annotationState['dbf:longitude'] ?? ''}
-            variant="outlined"
-            onChange={updateLongitude}
-          />
-        </Grid>
-      </Grid>
       <Grid>
         <Typography variant="formSectionTitle">{t('nested_map_linked_map')}</Typography>
       </Grid>
@@ -279,6 +265,42 @@ export default function NestedMapTemplate(
           rtl={activeLocaleIsRtl}
           value={activeLocaleContent.description}
         />
+      </Grid>
+      <Grid container direction="row" spacing={2}>
+        <Grid size={6}>
+          <TextField
+            fullWidth
+            error={latitudeError}
+            label={t('poi_latitude')}
+            slotProps={{ htmlInput: { max: 90, min: -90, step: 'any' } }}
+            type="number"
+            value={annotationState['dbf:latitude'] ?? ''}
+            variant="outlined"
+            onChange={updateLatitude}
+          />
+          {latitudeError && (
+            <Typography color="error" variant="caption">
+              {t('poi_latitude_invalid')}
+            </Typography>
+          )}
+        </Grid>
+        <Grid size={6}>
+          <TextField
+            fullWidth
+            error={longitudeError}
+            label={t('poi_longitude')}
+            slotProps={{ htmlInput: { max: 180, min: -180, step: 'any' } }}
+            type="number"
+            value={annotationState['dbf:longitude'] ?? ''}
+            variant="outlined"
+            onChange={updateLongitude}
+          />
+          {longitudeError && (
+            <Typography color="error" variant="caption">
+              {t('poi_longitude_invalid')}
+            </Typography>
+          )}
+        </Grid>
       </Grid>
       <Grid>
         <TargetFormSection

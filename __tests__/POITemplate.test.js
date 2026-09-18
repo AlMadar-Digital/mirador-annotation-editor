@@ -896,4 +896,106 @@ describe('POITemplate (render)', () => {
 
     expect(saveAnnotation).toHaveBeenCalledWith(expect.objectContaining({ 'dbf:latitude': null }));
   });
+
+  it('does not save and shows an error when latitude is out of the WGS84 range, even with a valid target and title', () => {
+    const saveAnnotation = vi.fn();
+    renderPoiTemplate({
+      body: [],
+      'dbf:kind': 'POI',
+      'dbf:latitude': 95,
+      id: 'canvas1/annotation/1',
+      maeData: {
+        target: { drawingState: JSON.stringify({ shapes: [poiShape()] }) },
+        templateType: 'poi',
+      },
+      motivation: 'identifying',
+      target: {
+        selector: [{ type: 'SvgSelector', value: '<svg><circle cx="10" cy="20" r="5"/></svg>' }],
+        source: 'canvas1',
+      },
+    }, saveAnnotation);
+
+    fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+    expect(saveAnnotation).not.toHaveBeenCalled();
+    expect(screen.getByText('poi_latitude_invalid')).toBeInTheDocument();
+  });
+
+  it('does not save and shows an error when longitude is out of the WGS84 range', () => {
+    const saveAnnotation = vi.fn();
+    renderPoiTemplate({
+      body: [],
+      'dbf:kind': 'POI',
+      'dbf:longitude': -200,
+      id: 'canvas1/annotation/1',
+      maeData: {
+        target: { drawingState: JSON.stringify({ shapes: [poiShape()] }) },
+        templateType: 'poi',
+      },
+      motivation: 'identifying',
+      target: {
+        selector: [{ type: 'SvgSelector', value: '<svg><circle cx="10" cy="20" r="5"/></svg>' }],
+        source: 'canvas1',
+      },
+    }, saveAnnotation);
+
+    fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+    expect(saveAnnotation).not.toHaveBeenCalled();
+    expect(screen.getByText('poi_longitude_invalid')).toBeInTheDocument();
+  });
+
+  it('saves once an out-of-range latitude is corrected to a valid value', () => {
+    const saveAnnotation = vi.fn();
+    renderPoiTemplate({
+      body: [],
+      'dbf:kind': 'POI',
+      'dbf:latitude': 95,
+      id: 'canvas1/annotation/1',
+      maeData: {
+        target: { drawingState: JSON.stringify({ shapes: [poiShape()] }) },
+        templateType: 'poi',
+      },
+      motivation: 'identifying',
+      target: {
+        selector: [{ type: 'SvgSelector', value: '<svg><circle cx="10" cy="20" r="5"/></svg>' }],
+        source: 'canvas1',
+      },
+    }, saveAnnotation);
+
+    fireEvent.click(screen.getByRole('button', { name: 'save' }));
+    expect(screen.getByText('poi_latitude_invalid')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('poi_latitude'), { target: { value: '31.7767' } });
+    fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+    expect(screen.queryByText('poi_latitude_invalid')).not.toBeInTheDocument();
+    expect(saveAnnotation).toHaveBeenCalledWith(expect.objectContaining({ 'dbf:latitude': 31.7767 }));
+  });
+
+  it('saves when latitude and longitude are at the exact edges of the valid WGS84 range', () => {
+    const saveAnnotation = vi.fn();
+    renderPoiTemplate({
+      body: [],
+      'dbf:kind': 'POI',
+      'dbf:latitude': -90,
+      'dbf:longitude': 180,
+      id: 'canvas1/annotation/1',
+      maeData: {
+        target: { drawingState: JSON.stringify({ shapes: [poiShape()] }) },
+        templateType: 'poi',
+      },
+      motivation: 'identifying',
+      target: {
+        selector: [{ type: 'SvgSelector', value: '<svg><circle cx="10" cy="20" r="5"/></svg>' }],
+        source: 'canvas1',
+      },
+    }, saveAnnotation);
+
+    fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+    expect(saveAnnotation).toHaveBeenCalled();
+    expect(screen.queryByText('poi_latitude_invalid')).not.toBeInTheDocument();
+    expect(screen.queryByText('poi_longitude_invalid')).not.toBeInTheDocument();
+  });
 });

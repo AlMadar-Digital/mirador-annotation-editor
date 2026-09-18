@@ -115,6 +115,25 @@ export const isValidPointTarget = (maeData) => {
   return Array.isArray(shapes) && shapes.length === 1 && shapes[0].type === SHAPES_TOOL.POI;
 };
 
+/** WGS84 latitude/longitude are each optional (unlike the required point target above), so
+ * `null`/`undefined` (never touched, or cleared back out - see updateLatitude/updateLongitude)
+ * is valid; only an actually-entered, out-of-range or non-finite value is invalid.
+ * @param {number|null|undefined} value
+ * @returns {boolean}
+ */
+export const isValidLatitude = (value) => (
+  value === null || value === undefined || (Number.isFinite(value) && value >= -90 && value <= 90)
+);
+
+/** See isValidLatitude's own doc - same optional/range-check shape, for WGS84 longitude
+ * (-180 to 180).
+ * @param {number|null|undefined} value
+ * @returns {boolean}
+ */
+export const isValidLongitude = (value) => (
+  value === null || value === undefined || (Number.isFinite(value) && value >= -180 && value <= 180)
+);
+
 /**
  * Whether every configured content locale has a non-empty title (issue #377 review comment:
  * "TitleAr and TitleEn are mandatory in the three template"). Reads straight off
@@ -247,6 +266,8 @@ export default function POITemplate(
   const [annotationState, setAnnotationState] = useState(maeAnnotation);
   const [targetError, setTargetError] = useState(false);
   const [titleError, setTitleError] = useState(false);
+  const [latitudeError, setLatitudeError] = useState(false);
+  const [longitudeError, setLongitudeError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activeLocale, setActiveLocale] = useState(
     getDefaultActiveLocale(annotationState.maeData.contentByLocale, contentLocales),
@@ -340,9 +361,13 @@ export default function POITemplate(
   const saveFunction = async () => {
     const validTarget = isValidPointTarget(annotationState.maeData);
     const validTitle = isTitleFilled(annotationState.maeData.contentByLocale, contentLocales);
+    const validLatitude = isValidLatitude(annotationState['dbf:latitude']);
+    const validLongitude = isValidLongitude(annotationState['dbf:longitude']);
     setTargetError(!validTarget);
     setTitleError(!validTitle);
-    if (!validTarget || !validTitle) {
+    setLatitudeError(!validLatitude);
+    setLongitudeError(!validLongitude);
+    if (!validTarget || !validTitle || !validLatitude || !validLongitude) {
       return;
     }
     resizeKonvaStage(
@@ -419,28 +444,6 @@ export default function POITemplate(
           />
         </Grid>
       )}
-      <Grid container direction="row" spacing={2}>
-        <Grid size={6}>
-          <TextField
-            fullWidth
-            label={t('poi_latitude')}
-            type="number"
-            value={annotationState['dbf:latitude'] ?? ''}
-            variant="outlined"
-            onChange={updateLatitude}
-          />
-        </Grid>
-        <Grid size={6}>
-          <TextField
-            fullWidth
-            label={t('poi_longitude')}
-            type="number"
-            value={annotationState['dbf:longitude'] ?? ''}
-            variant="outlined"
-            onChange={updateLongitude}
-          />
-        </Grid>
-      </Grid>
       <Grid>
         <Typography variant="formSectionTitle">{t('poi_description_section')}</Typography>
       </Grid>
@@ -460,6 +463,42 @@ export default function POITemplate(
           rtl={activeLocaleIsRtl}
           value={activeLocaleContent.description}
         />
+      </Grid>
+      <Grid container direction="row" spacing={2}>
+        <Grid size={6}>
+          <TextField
+            fullWidth
+            error={latitudeError}
+            label={t('poi_latitude')}
+            slotProps={{ htmlInput: { max: 90, min: -90, step: 'any' } }}
+            type="number"
+            value={annotationState['dbf:latitude'] ?? ''}
+            variant="outlined"
+            onChange={updateLatitude}
+          />
+          {latitudeError && (
+            <Typography color="error" variant="caption">
+              {t('poi_latitude_invalid')}
+            </Typography>
+          )}
+        </Grid>
+        <Grid size={6}>
+          <TextField
+            fullWidth
+            error={longitudeError}
+            label={t('poi_longitude')}
+            slotProps={{ htmlInput: { max: 180, min: -180, step: 'any' } }}
+            type="number"
+            value={annotationState['dbf:longitude'] ?? ''}
+            variant="outlined"
+            onChange={updateLongitude}
+          />
+          {longitudeError && (
+            <Typography color="error" variant="caption">
+              {t('poi_longitude_invalid')}
+            </Typography>
+          )}
+        </Grid>
       </Grid>
       <Grid>
         <TargetFormSection

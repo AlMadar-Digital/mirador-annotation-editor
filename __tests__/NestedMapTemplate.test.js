@@ -301,4 +301,24 @@ describe('NestedMapTemplate (render)', () => {
     expect(screen.getByLabelText('poi_latitude')).toHaveValue(31.7767);
     expect(screen.getByLabelText('poi_longitude')).toHaveValue(35.2345);
   });
+
+  it('does not save and shows an error when latitude is out of the WGS84 range, even with a valid target, title and linked map', () => {
+    const saveAnnotation = vi.fn();
+    renderNestedMapTemplate({ ...baseNestedMapState(), 'dbf:latitude': 95 }, saveAnnotation);
+
+    fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+    expect(saveAnnotation).not.toHaveBeenCalled();
+    expect(screen.getByText('poi_latitude_invalid')).toBeInTheDocument();
+  });
+
+  it('does not save and shows an error when longitude is out of the WGS84 range', () => {
+    const saveAnnotation = vi.fn();
+    renderNestedMapTemplate({ ...baseNestedMapState(), 'dbf:longitude': -200 }, saveAnnotation);
+
+    fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+    expect(saveAnnotation).not.toHaveBeenCalled();
+    expect(screen.getByText('poi_longitude_invalid')).toBeInTheDocument();
+  });
 });
