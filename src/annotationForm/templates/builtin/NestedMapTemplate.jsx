@@ -20,6 +20,7 @@ import {
   isValidLatitude,
   isValidLongitude,
   isValidPointTarget,
+  normalizeCoordinateInput,
   parseContentByLocale,
 } from './POITemplate';
 
@@ -96,6 +97,14 @@ export default function NestedMapTemplate(
   const [titleError, setTitleError] = useState(false);
   const [latitudeError, setLatitudeError] = useState(false);
   const [longitudeError, setLongitudeError] = useState(false);
+  // See POITemplate's own latitudeInput/longitudeInput doc for why these are tracked separately
+  // from the parsed `dbf:latitude`/`dbf:longitude`.
+  const [latitudeInput, setLatitudeInput] = useState(
+    maeAnnotation['dbf:latitude'] != null ? String(maeAnnotation['dbf:latitude']) : '',
+  );
+  const [longitudeInput, setLongitudeInput] = useState(
+    maeAnnotation['dbf:longitude'] != null ? String(maeAnnotation['dbf:longitude']) : '',
+  );
   const [saving, setSaving] = useState(false);
   const [activeLocale, setActiveLocale] = useState(
     getDefaultActiveLocale(annotationState.maeData.contentByLocale, contentLocales),
@@ -147,22 +156,23 @@ export default function NestedMapTemplate(
   };
 
   /** Update the optional real-world latitude/longitude - see POITemplate's updateLatitude/
-   * updateLongitude for the shared doc. An empty input clears the field back to `null` rather
-   * than saving an empty string. */
+   * updateLongitude for the shared doc. */
   const updateLatitude = (event) => {
     const { value } = event.target;
+    setLatitudeInput(value);
     setAnnotationState((prev) => ({
       ...prev,
-      'dbf:latitude': value === '' ? null : Number(value),
+      'dbf:latitude': normalizeCoordinateInput(value),
     }));
   };
 
   /** Update the optional real-world longitude - see updateLatitude's own doc. */
   const updateLongitude = (event) => {
     const { value } = event.target;
+    setLongitudeInput(value);
     setAnnotationState((prev) => ({
       ...prev,
-      'dbf:longitude': value === '' ? null : Number(value),
+      'dbf:longitude': normalizeCoordinateInput(value),
     }));
   };
 
@@ -272,9 +282,9 @@ export default function NestedMapTemplate(
             fullWidth
             error={latitudeError}
             label={t('poi_latitude')}
-            slotProps={{ htmlInput: { max: 90, min: -90, step: 'any' } }}
-            type="number"
-            value={annotationState['dbf:latitude'] ?? ''}
+            slotProps={{ htmlInput: { inputMode: 'decimal' } }}
+            type="text"
+            value={latitudeInput}
             variant="outlined"
             onChange={updateLatitude}
           />
@@ -289,9 +299,9 @@ export default function NestedMapTemplate(
             fullWidth
             error={longitudeError}
             label={t('poi_longitude')}
-            slotProps={{ htmlInput: { max: 180, min: -180, step: 'any' } }}
-            type="number"
-            value={annotationState['dbf:longitude'] ?? ''}
+            slotProps={{ htmlInput: { inputMode: 'decimal' } }}
+            type="text"
+            value={longitudeInput}
             variant="outlined"
             onChange={updateLongitude}
           />

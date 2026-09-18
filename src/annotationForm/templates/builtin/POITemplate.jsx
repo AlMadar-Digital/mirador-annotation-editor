@@ -134,6 +134,22 @@ export const isValidLongitude = (value) => (
   value === null || value === undefined || (Number.isFinite(value) && value >= -180 && value <= 180)
 );
 
+/** Normalizes a latitude/longitude text field's raw typed string into the value stored on the
+ * annotation: `null` for an empty/blank input, otherwise `Number(...)` of the string with any
+ * comma decimal separator normalized to a period first. Some locales/keyboards (e.g. French)
+ * type a comma for the decimal separator, but a plain `type="number"` input silently rejects
+ * that keystroke in most browsers (it never even reaches `onChange`) - these fields are
+ * `type="text"` instead and do their own parsing here, so both "31.7767" and "31,7767" work.
+ * Anything else unparseable becomes `NaN`, which isValidLatitude/isValidLongitude already treat
+ * as invalid (`Number.isFinite(NaN)` is false), so no extra validation is needed here.
+ * @param {string} rawValue
+ * @returns {number|null}
+ */
+export const normalizeCoordinateInput = (rawValue) => {
+  const trimmed = rawValue.trim();
+  return trimmed === '' ? null : Number(trimmed.replace(',', '.'));
+};
+
 /**
  * Whether every configured content locale has a non-empty title (issue #377 review comment:
  * "TitleAr and TitleEn are mandatory in the three template"). Reads straight off
@@ -268,6 +284,19 @@ export default function POITemplate(
   const [titleError, setTitleError] = useState(false);
   const [latitudeError, setLatitudeError] = useState(false);
   const [longitudeError, setLongitudeError] = useState(false);
+  // The latitude/longitude fields are bound to their own raw typed string, not derived back from
+  // `annotationState['dbf:latitude']`/`['dbf:longitude']` on every render: these are `type="text"`
+  // (see normalizeCoordinateInput's own doc for why), and re-deriving a string from the parsed
+  // Number on each keystroke would collapse "31." back down to "31" (or "31,7" to "31.7") while
+  // the editor is still mid-typing, making it impossible to ever type a decimal point/comma at
+  // all. Initialized once from the loaded annotation, matching activeLocale's own
+  // initialize-once-from-props convention just below.
+  const [latitudeInput, setLatitudeInput] = useState(
+    maeAnnotation['dbf:latitude'] != null ? String(maeAnnotation['dbf:latitude']) : '',
+  );
+  const [longitudeInput, setLongitudeInput] = useState(
+    maeAnnotation['dbf:longitude'] != null ? String(maeAnnotation['dbf:longitude']) : '',
+  );
   const [saving, setSaving] = useState(false);
   const [activeLocale, setActiveLocale] = useState(
     getDefaultActiveLocale(annotationState.maeData.contentByLocale, contentLocales),
@@ -339,21 +368,25 @@ export default function POITemplate(
 
   /** Update the optional real-world latitude/longitude - each is its own root-level annotation
    * extension (`dbf:latitude`/`dbf:longitude`), same pattern as updateMediaEn/updateMediaAr.
-   * An empty input clears the field back to `null` rather than saving an empty string. */
+   * Tracks the field's own raw typed string (see latitudeInput's own doc) alongside the parsed
+   * `dbf:latitude` used for validation/saving - see normalizeCoordinateInput's own doc for why a
+   * comma decimal separator is accepted here. */
   const updateLatitude = (event) => {
     const { value } = event.target;
+    setLatitudeInput(value);
     setAnnotationState((prev) => ({
       ...prev,
-      'dbf:latitude': value === '' ? null : Number(value),
+      'dbf:latitude': normalizeCoordinateInput(value),
     }));
   };
 
   /** Update the optional real-world longitude - see updateLatitude's own doc. */
   const updateLongitude = (event) => {
     const { value } = event.target;
+    setLongitudeInput(value);
     setAnnotationState((prev) => ({
       ...prev,
-      'dbf:longitude': value === '' ? null : Number(value),
+      'dbf:longitude': normalizeCoordinateInput(value),
     }));
   };
 
@@ -470,9 +503,9 @@ export default function POITemplate(
             fullWidth
             error={latitudeError}
             label={t('poi_latitude')}
-            slotProps={{ htmlInput: { max: 90, min: -90, step: 'any' } }}
-            type="number"
-            value={annotationState['dbf:latitude'] ?? ''}
+            slotProps={{ htmlInput: { inputMode: 'decimal' } }}
+            type="text"
+            value={latitudeInput}
             variant="outlined"
             onChange={updateLatitude}
           />
@@ -487,9 +520,9 @@ export default function POITemplate(
             fullWidth
             error={longitudeError}
             label={t('poi_longitude')}
-            slotProps={{ htmlInput: { max: 180, min: -180, step: 'any' } }}
-            type="number"
-            value={annotationState['dbf:longitude'] ?? ''}
+            slotProps={{ htmlInput: { inputMode: 'decimal' } }}
+            type="text"
+            value={longitudeInput}
             variant="outlined"
             onChange={updateLongitude}
           />

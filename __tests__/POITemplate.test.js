@@ -821,8 +821,8 @@ describe('POITemplate (render)', () => {
   it('starts with empty latitude/longitude fields for a new annotation', () => {
     renderPoiTemplate();
 
-    expect(screen.getByLabelText('poi_latitude')).toHaveValue(null);
-    expect(screen.getByLabelText('poi_longitude')).toHaveValue(null);
+    expect(screen.getByLabelText('poi_latitude')).toHaveValue('');
+    expect(screen.getByLabelText('poi_longitude')).toHaveValue('');
   });
 
   it('lets the editor type a latitude and longitude, saved as root-level dbf:latitude/dbf:longitude', () => {
@@ -869,8 +869,8 @@ describe('POITemplate (render)', () => {
       },
     });
 
-    expect(screen.getByLabelText('poi_latitude')).toHaveValue(31.7767);
-    expect(screen.getByLabelText('poi_longitude')).toHaveValue(35.2345);
+    expect(screen.getByLabelText('poi_latitude')).toHaveValue('31.7767');
+    expect(screen.getByLabelText('poi_longitude')).toHaveValue('35.2345');
   });
 
   it('clears latitude back to null when the field is emptied', () => {
@@ -997,5 +997,65 @@ describe('POITemplate (render)', () => {
     expect(saveAnnotation).toHaveBeenCalled();
     expect(screen.queryByText('poi_latitude_invalid')).not.toBeInTheDocument();
     expect(screen.queryByText('poi_longitude_invalid')).not.toBeInTheDocument();
+  });
+
+  it('accepts a comma as the decimal separator (e.g. a French keyboard/locale), saved as a plain number with a period', () => {
+    const saveAnnotation = vi.fn();
+    renderPoiTemplate({
+      body: [],
+      'dbf:kind': 'POI',
+      id: 'canvas1/annotation/1',
+      maeData: {
+        target: { drawingState: JSON.stringify({ shapes: [poiShape()] }) },
+        templateType: 'poi',
+      },
+      motivation: 'identifying',
+      target: {
+        selector: [{ type: 'SvgSelector', value: '<svg><circle cx="10" cy="20" r="5"/></svg>' }],
+        source: 'canvas1',
+      },
+    }, saveAnnotation);
+
+    fireEvent.change(screen.getByLabelText('poi_latitude'), { target: { value: '31,7767' } });
+    fireEvent.change(screen.getByLabelText('poi_longitude'), { target: { value: '35,2345' } });
+    fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+    expect(screen.queryByText('poi_latitude_invalid')).not.toBeInTheDocument();
+    expect(screen.queryByText('poi_longitude_invalid')).not.toBeInTheDocument();
+    expect(saveAnnotation).toHaveBeenCalledWith(
+      expect.objectContaining({ 'dbf:latitude': 31.7767, 'dbf:longitude': 35.2345 }),
+    );
+  });
+
+  it('keeps the raw typed text in the field (including a trailing separator) while the value is still being entered, instead of collapsing it back to a bare number', () => {
+    renderPoiTemplate();
+
+    fireEvent.change(screen.getByLabelText('poi_latitude'), { target: { value: '31,' } });
+
+    expect(screen.getByLabelText('poi_latitude')).toHaveValue('31,');
+  });
+
+  it('does not save and shows an error for unparseable latitude text', () => {
+    const saveAnnotation = vi.fn();
+    renderPoiTemplate({
+      body: [],
+      'dbf:kind': 'POI',
+      id: 'canvas1/annotation/1',
+      maeData: {
+        target: { drawingState: JSON.stringify({ shapes: [poiShape()] }) },
+        templateType: 'poi',
+      },
+      motivation: 'identifying',
+      target: {
+        selector: [{ type: 'SvgSelector', value: '<svg><circle cx="10" cy="20" r="5"/></svg>' }],
+        source: 'canvas1',
+      },
+    }, saveAnnotation);
+
+    fireEvent.change(screen.getByLabelText('poi_latitude'), { target: { value: 'abc' } });
+    fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+    expect(saveAnnotation).not.toHaveBeenCalled();
+    expect(screen.getByText('poi_latitude_invalid')).toBeInTheDocument();
   });
 });
