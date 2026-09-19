@@ -356,7 +356,7 @@ const catmullRomToBezierPath = (points) => {
 };
 
 /** Dash/gap lengths (in canvas pixels) for a journey's path, distinguishing it at a glance from
- * a POI/tagging target's own solid outline - both otherwise share TARGET_TOOL_STATE's color. */
+ * a tagging/text/etc. target's own solid TARGET_TOOL_STATE-colored outline. */
 const JOURNEY_PATH_DASH_ARRAY = '15,10';
 
 /**
@@ -388,7 +388,7 @@ export const smoothCurveToSvg = ({ points, fullW: rawFullW, fullH: rawFullH }) =
       <path
         d='${pathData}'
         fill='none'
-        stroke='${TARGET_TOOL_STATE.strokeColor}'
+        stroke='${POI_MARKER_STYLE.fill}'
         stroke-width='${TARGET_TOOL_STATE.strokeWidth}'
         stroke-miterlimit='10'
         stroke-dasharray='${JOURNEY_PATH_DASH_ARRAY}'

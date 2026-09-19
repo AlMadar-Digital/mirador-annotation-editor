@@ -228,7 +228,7 @@ export const SHAPES_TOOL = {
  * other drawable shape - this is deliberately not read from toolState anywhere.
  */
 export const POI_MARKER_STYLE = {
-  fill: '#e53935',
+  fill: '#1e88e5',
   stroke: '#ffffff',
   strokeWidth: 2,
 };
