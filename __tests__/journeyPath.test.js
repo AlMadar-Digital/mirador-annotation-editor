@@ -30,7 +30,7 @@ describe('recomputeJourneyPath', () => {
     expect(recomputeJourneyPath('journey-missing', items)).toBeNull();
   });
 
-  it('builds an open polyline through the journey\'s pois, ordered by dbf:journey.order', () => {
+  it('joins two pois with a straight line (a curve has nothing to smooth between two points)', () => {
     const items = [
       journey('journey-1'),
       poi('poi-b', {
@@ -49,6 +49,29 @@ describe('recomputeJourneyPath', () => {
     const svg = updated.target.selector[0].value;
     expect(svg).toContain("width='800' height='600'");
     expect(svg).toContain('M 100,200 L 300,400');
+  });
+
+  it('joins 3+ pois with a smooth curve (a Catmull-Rom spline) that still passes through each one', () => {
+    const items = [
+      journey('journey-1'),
+      poi('poi-a', {
+        journeyId: 'journey-1', order: 0, x: 0, y: 0,
+      }),
+      poi('poi-b', {
+        journeyId: 'journey-1', order: 1, x: 6, y: 0,
+      }),
+      poi('poi-c', {
+        journeyId: 'journey-1', order: 2, x: 12, y: 0,
+      }),
+    ];
+
+    const updated = recomputeJourneyPath('journey-1', items);
+    const svg = updated.target.selector[0].value;
+
+    // No more straight "L" segments once there's a bend to smooth - each leg is a cubic
+    // bezier ("C") instead, but its own endpoint still lands exactly on the next poi.
+    expect(svg).not.toMatch(/\bL\b/);
+    expect(svg).toContain('M 0,0 C 1,0 4,0 6,0 C 8,0 11,0 12,0');
   });
 
   it('sizes the synthesized svg from any one poi\'s fullCanvaXYWH (they all share one canvas)', () => {

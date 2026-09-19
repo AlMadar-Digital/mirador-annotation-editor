@@ -315,24 +315,60 @@ const xywhToSvg = ({
 };
 
 /**
- * Build an open polyline SVG string through an ordered list of points (issue #358): synthesizes
- * a journey's path directly from its POIs' already-saved center points, without a live Konva
- * stage (journeys mount no Konva stage at all - see JourneyTemplate.jsx). Modeled on xywhToSvg's
- * `<svg>` wrapper conventions, but with no fill (an open line, not a filled shape) and a
- * multi-point `d` path instead of a single rectangle.
+ * Builds a smooth cubic-bezier `d` path through every point, in order, via a Catmull-Rom
+ * spline: unlike a quadratic/simplified curve, this passes through each point exactly (not
+ * just near it), which matters here since each point is a POI's own marker center - the curve
+ * must still touch every marker, only the line between them should bend smoothly instead of
+ * breaking. Segment i's control points are derived from its neighbors on each side, clamped to
+ * the curve's own endpoint when there is no such neighbor (a poi has no "before the first" or
+ * "after the last" leg to smooth against, so the endpoint just repeats itself there).
+ * @param {{x: number, y: number}[]} points
+ * @returns {string}
+ */
+const catmullRomToBezierPath = (points) => {
+  const [first] = points;
+  if (points.length === 2) {
+    const [, second] = points;
+    return `M ${first.x},${first.y} L ${second.x},${second.y}`;
+  }
+
+  const segments = points.slice(0, -1).map((p1, i) => {
+    const p0 = points[i - 1] ?? p1;
+    const p2 = points[i + 1];
+    const p3 = points[i + 2] ?? p2;
+    // Standard uniform Catmull-Rom -> cubic Bezier control point conversion (tangent = 1/6 of
+    // the chord between the point before and the point after).
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+    return `C ${cp1x},${cp1y} ${cp2x},${cp2y} ${p2.x},${p2.y}`;
+  });
+
+  return `M ${first.x},${first.y} ${segments.join(' ')}`;
+};
+
+/** Dash/gap lengths (in canvas pixels) for a journey's path, distinguishing it at a glance from
+ * a POI/tagging target's own solid outline - both otherwise share TARGET_TOOL_STATE's color. */
+const JOURNEY_PATH_DASH_ARRAY = '15,10';
+
+/**
+ * Build a smooth open curve SVG string through an ordered list of points (issue #358):
+ * synthesizes a journey's path directly from its POIs' already-saved center points, without a
+ * live Konva stage (journeys mount no Konva stage at all - see JourneyTemplate.jsx). Modeled on
+ * xywhToSvg's `<svg>` wrapper conventions, but with no fill (an open line, not a filled shape)
+ * and a smooth multi-point `d` path (see catmullRomToBezierPath) instead of a single rectangle.
  * @param {{ points: {x: number, y: number}[], fullW: number|string, fullH: number|string }}
  * @returns {string}
  */
-export const polylineToSvg = ({ points, fullW: rawFullW, fullH: rawFullH }) => {
+export const smoothCurveToSvg = ({ points, fullW: rawFullW, fullH: rawFullH }) => {
   const fullW = parseFloat(rawFullW);
   const fullH = parseFloat(rawFullH);
   if (!Number.isFinite(fullW) || !Number.isFinite(fullH)) {
-    throw new Error(`polylineToSvg: fullW,fullH must be floats (got fullW=${fullW}, fullH=${fullH})`);
+    throw new Error(`smoothCurveToSvg: fullW,fullH must be floats (got fullW=${fullW}, fullH=${fullH})`);
   }
 
-  const pathData = points
-    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x},${point.y}`)
-    .join(' ');
+  const pathData = catmullRomToBezierPath(points);
 
   return `<svg
       version='1.1'
@@ -348,7 +384,7 @@ export const polylineToSvg = ({ points, fullW: rawFullW, fullH: rawFullH }) => {
         stroke='${TARGET_TOOL_STATE.strokeColor}'
         stroke-width='${TARGET_TOOL_STATE.strokeWidth}'
         stroke-miterlimit='10'
-        stroke-dasharray=''
+        stroke-dasharray='${JOURNEY_PATH_DASH_ARRAY}'
       />
     </g></g>
   </svg>`;

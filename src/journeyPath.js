@@ -1,6 +1,6 @@
 import { groupAnnotationItems } from './annotationListGrouping';
 import {
-  convertIIIFAnnoToMaeData, getIIIFTargetAsFragmentSVGSelector, polylineToSvg,
+  convertIIIFAnnoToMaeData, getIIIFTargetAsFragmentSVGSelector, smoothCurveToSvg,
 } from './IIIFUtils';
 
 /**
@@ -49,7 +49,7 @@ const canvasIdOfJourney = (journeyItem) => (
 );
 
 /**
- * Recomputes `journeyId`'s path target from its current POIs (issue #358): an open polyline
+ * Recomputes `journeyId`'s path target from its current POIs (issue #358): a smooth open curve
  * through each POI's center point, ordered by dbf:journey.order (groupAnnotationItems already
  * provides that ordering - no new data model needed), sized to the canvas's own pixel
  * dimensions so Mirador doesn't scale/position it incorrectly relative to the image.
@@ -84,7 +84,7 @@ export const recomputeJourneyPath = (journeyId, items) => {
   }
 
   const [, , fullW, fullH] = fullCanvaXYWH.split(',');
-  const svg = polylineToSvg({ fullH, fullW, points });
+  const svg = smoothCurveToSvg({ fullH, fullW, points });
 
   return {
     ...journeyEntry.item,
