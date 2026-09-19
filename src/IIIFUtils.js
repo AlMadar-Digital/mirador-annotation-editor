@@ -314,6 +314,12 @@ const xywhToSvg = ({
   </svg>`;
 };
 
+/** Scales each Catmull-Rom tangent beyond the canonical 1/6-chord length (tension 1): rounds
+ * off the bend at each poi more generously, at the cost of a wider, more sweeping curve on
+ * either side of it. 1.5 was chosen by eye against the demo map - noticeably smoother than the
+ * canonical curve without yet overshooting into a visible loop at sharp turns. */
+const CURVE_TENSION = 1.5;
+
 /**
  * Builds a smooth cubic-bezier `d` path through every point, in order, via a Catmull-Rom
  * spline: unlike a quadratic/simplified curve, this passes through each point exactly (not
@@ -336,12 +342,13 @@ const catmullRomToBezierPath = (points) => {
     const p0 = points[i - 1] ?? p1;
     const p2 = points[i + 1];
     const p3 = points[i + 2] ?? p2;
-    // Standard uniform Catmull-Rom -> cubic Bezier control point conversion (tangent = 1/6 of
-    // the chord between the point before and the point after).
-    const cp1x = p1.x + (p2.x - p0.x) / 6;
-    const cp1y = p1.y + (p2.y - p0.y) / 6;
-    const cp2x = p2.x - (p3.x - p1.x) / 6;
-    const cp2y = p2.y - (p3.y - p1.y) / 6;
+    // Catmull-Rom -> cubic Bezier control point conversion (tangent = CURVE_TENSION/6 of the
+    // chord between the point before and the point after; CURVE_TENSION=1 is the canonical
+    // conversion).
+    const cp1x = p1.x + ((p2.x - p0.x) * CURVE_TENSION) / 6;
+    const cp1y = p1.y + ((p2.y - p0.y) * CURVE_TENSION) / 6;
+    const cp2x = p2.x - ((p3.x - p1.x) * CURVE_TENSION) / 6;
+    const cp2y = p2.y - ((p3.y - p1.y) * CURVE_TENSION) / 6;
     return `C ${cp1x},${cp1y} ${cp2x},${cp2y} ${p2.x},${p2.y}`;
   });
 

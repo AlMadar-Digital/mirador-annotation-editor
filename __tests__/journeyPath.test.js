@@ -71,7 +71,7 @@ describe('recomputeJourneyPath', () => {
     // No more straight "L" segments once there's a bend to smooth - each leg is a cubic
     // bezier ("C") instead, but its own endpoint still lands exactly on the next poi.
     expect(svg).not.toMatch(/\bL\b/);
-    expect(svg).toContain('M 0,0 C 1,0 4,0 6,0 C 8,0 11,0 12,0');
+    expect(svg).toContain('M 0,0 C 1.5,0 3,0 6,0 C 9,0 10.5,0 12,0');
   });
 
   it('sizes the synthesized svg from any one poi\'s fullCanvaXYWH (they all share one canvas)', () => {

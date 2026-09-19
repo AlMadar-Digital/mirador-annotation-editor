@@ -33,7 +33,7 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "prepack": "npm run build",
+    "prepack": "npm run buiNot bad",
     "build": "vite build && npm run types:copy",
     "build:watch": "vite build --watch",
     "types:copy": "mkdir -p dist && cp src/index.d.ts dist/index.d.ts",
