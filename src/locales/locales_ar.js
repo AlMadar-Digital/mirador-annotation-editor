@@ -105,6 +105,7 @@ export const ar = {
   pressEnterToAddTag: "أضف الوسم واضغط \"Enter\"",
   pressEscapeToFinish: "اضغط \"Esc\" لإنهاء الخط",
   rectangle: "مستطيل",
+  refresh_journey_path: "تحديث المسار",
   remove_from_journey: "إزالة من المسار",
   replace: "استبدال",
   save: "حفظ",

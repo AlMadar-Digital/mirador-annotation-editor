@@ -1,4 +1,5 @@
 import React from 'react';
+import userEvent from '@testing-library/user-event';
 import AnnotationActionsContext from '../src/AnnotationActionsContext';
 import SortableCanvasAnnotationsList from '../src/SortableCanvasAnnotationsList';
 import { groupAnnotationItems } from '../src/annotationListGrouping';
@@ -59,8 +60,8 @@ const annotationActionsContextValue = {
   switchToSingleCanvasView: () => {},
 };
 
-const withContext = (props) => (
-  <AnnotationActionsContext.Provider value={annotationActionsContextValue}>
+const withContext = (props, context = {}) => (
+  <AnnotationActionsContext.Provider value={{ ...annotationActionsContextValue, ...context }}>
     <SortableCanvasAnnotationsList {...baseProps} {...props} />
   </AnnotationActionsContext.Provider>
 );
@@ -144,5 +145,131 @@ describe('SortableCanvasAnnotationsList', () => {
       storageAdapter,
     }));
     expect(listedTitles()).toEqual(['poi/b', 'poi/a']);
+  });
+});
+
+describe('journey path auto-recompute (issue #358)', () => {
+  /** A raw journey annotation item, with no synthesized path yet (plain canvas-id target). */
+  const journeyItem = (id, order = 0) => ({
+    body: [{
+      language: 'en', purpose: 'identifying', type: 'TextualBody', value: id,
+    }],
+    'dbf:kind': 'Journey',
+    'dbf:order': order,
+    id,
+    target: 'canv/1',
+  });
+
+  /** A raw poi item with an already-placed marker (maeData.target), as finalizeSpatialTarget
+   * would have saved it - the input recomputeJourneyPath reads a poi's center point from. */
+  const poiWithTarget = ({
+    id, journeyId, order, x, y,
+  }) => ({
+    body: [{
+      language: 'en', purpose: 'identifying', type: 'TextualBody', value: id,
+    }],
+    'dbf:journey': journeyId ? { id: journeyId, order } : undefined,
+    'dbf:kind': 'POI',
+    id,
+    maeData: {
+      target: {
+        drawingState: JSON.stringify({ shapes: [{ type: 'poi', x, y }] }),
+        fullCanvaXYWH: '0,0,800,600',
+      },
+    },
+  });
+
+  /** A fake adapter whose `update` mutates a shared in-memory store (like a real
+   * read-modify-write adapter would), so a later persist in the same test sees every earlier
+   * one's effect - unlike a stateless mock, this matters here because the journey-path
+   * recompute must read the POIs' *latest* order, not the state as it was before this test's
+   * own earlier writes landed. */
+  const fakeAdapter = (initialItems) => {
+    let store = initialItems;
+    const update = vi.fn(async (annotation) => {
+      store = store.map((it) => (it.id === annotation.id ? annotation : it));
+      return { items: store };
+    });
+    return { annotationPageId: 'page/1', update };
+  };
+
+  it('recomputes and persists the journey path once after reordering its pois in one drag', async () => {
+    const journey = journeyItem('journey/1');
+    const poiA = poiWithTarget({
+      id: 'poi/a', journeyId: 'journey/1', order: 0, x: 10, y: 10,
+    });
+    const poiB = poiWithTarget({
+      id: 'poi/b', journeyId: 'journey/1', order: 1, x: 20, y: 20,
+    });
+
+    const adapter = fakeAdapter([journey, poiA, poiB]);
+    const storageAdapter = vi.fn(() => adapter);
+    const receiveAnnotation = vi.fn();
+
+    render(withContext({
+      items: [journey, poiA, poiB],
+      receiveAnnotation,
+      storageAdapter,
+    }));
+
+    // sortables[0] is the top-level list, sortables[1] is this one journey's nested poi list.
+    const nestedProps = screen.getAllByTestId('mock-sortable')[1].sortableProps;
+
+    await act(async () => {
+      nestedProps.onStart();
+      nestedProps.setList([
+        { ...poiB, 'dbf:journey': { id: 'journey/1', order: 0 } },
+        { ...poiA, 'dbf:journey': { id: 'journey/1', order: 1 } },
+      ]);
+      nestedProps.onEnd();
+    });
+
+    // 2 poi writes (the reordered batch) + 1 journey path write, once the batch settles.
+    await waitFor(() => expect(adapter.update).toHaveBeenCalledTimes(3));
+
+    const journeyWrite = adapter.update.mock.calls
+      .map((call) => call[0])
+      .find((annotation) => annotation.id === 'journey/1');
+    expect(journeyWrite.target.source).toBe('canv/1');
+    expect(journeyWrite.target.selector[0].value).toContain('M 20,20 L 10,10');
+  });
+
+  it('recomputes the destination journey\'s path after "move to journey" assigns a poi to it', async () => {
+    const journey = journeyItem('journey/1');
+    const existingPoi = poiWithTarget({
+      id: 'poi/existing', journeyId: 'journey/1', order: 0, x: 10, y: 10,
+    });
+    const standalonePoi = poiWithTarget({ id: 'poi/standalone', x: 20, y: 20 });
+
+    const adapter = fakeAdapter([journey, existingPoi, standalonePoi]);
+    const storageAdapter = vi.fn(() => adapter);
+    const receiveAnnotation = vi.fn();
+
+    render(withContext({
+      items: [journey, existingPoi, standalonePoi],
+      receiveAnnotation,
+      storageAdapter,
+    }, {
+      annotationEditCompanionWindowIsOpened: true,
+      annotationsOnCanvases: {
+        'canv/1': {
+          'annoPage/1': { json: { items: [journey, existingPoi, standalonePoi] } },
+        },
+      },
+      canvases: [{ id: 'canv/1' }],
+    }));
+
+    const standaloneRow = screen.getByText('poi/standalone').closest('li');
+    await userEvent.hover(standaloneRow);
+    await userEvent.click(screen.getByRole('button', { name: /move to journey/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: journey.body[0].value }));
+
+    // The poi's own write, then the journey path write once it settles.
+    await waitFor(() => expect(adapter.update).toHaveBeenCalledTimes(2));
+
+    const journeyWrite = adapter.update.mock.calls
+      .map((call) => call[0])
+      .find((annotation) => annotation.id === 'journey/1');
+    expect(journeyWrite.target.selector[0].value).toContain('M 10,10 L 20,20');
   });
 });

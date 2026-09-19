@@ -105,6 +105,7 @@ export const fr = {
   pressEnterToAddTag: 'Valider avec "Entrée"',
   pressEscapeToFinish: 'Appuyez sur "Échap" pour terminer la ligne',
   rectangle: 'Rectangle',
+  refresh_journey_path: 'Actualiser le tracé',
   remove_from_journey: 'Retirer du parcours',
   replace: 'Remplacer',
   save: 'Sauvegarder',

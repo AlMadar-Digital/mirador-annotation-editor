@@ -105,7 +105,7 @@ const getIIIFTargetFromRectangleShape = (maeTarget, canvasId, shape) => {
  * @param canvasId
  * @returns {{selector: [{type: string, value},{type: string, value: string}], source}}
  */
-const getIIIFTargetAsFragmentSVGSelector = (maeTarget, canvasId) => {
+export const getIIIFTargetAsFragmentSVGSelector = (maeTarget, canvasId) => {
   const fragmentTarget = `${maeTarget.tend ? `t=${maeTarget.tstart},${maeTarget.tend}` : ''}`;
   return {
     selector: [
@@ -307,6 +307,46 @@ const xywhToSvg = ({
         stroke='${TARGET_TOOL_STATE.strokeColor}'
         stroke-width='${TARGET_TOOL_STATE.strokeWidth}'
         fill-opacity='0'
+        stroke-miterlimit='10'
+        stroke-dasharray=''
+      />
+    </g></g>
+  </svg>`;
+};
+
+/**
+ * Build an open polyline SVG string through an ordered list of points (issue #358): synthesizes
+ * a journey's path directly from its POIs' already-saved center points, without a live Konva
+ * stage (journeys mount no Konva stage at all - see JourneyTemplate.jsx). Modeled on xywhToSvg's
+ * `<svg>` wrapper conventions, but with no fill (an open line, not a filled shape) and a
+ * multi-point `d` path instead of a single rectangle.
+ * @param {{ points: {x: number, y: number}[], fullW: number|string, fullH: number|string }}
+ * @returns {string}
+ */
+export const polylineToSvg = ({ points, fullW: rawFullW, fullH: rawFullH }) => {
+  const fullW = parseFloat(rawFullW);
+  const fullH = parseFloat(rawFullH);
+  if (!Number.isFinite(fullW) || !Number.isFinite(fullH)) {
+    throw new Error(`polylineToSvg: fullW,fullH must be floats (got fullW=${fullW}, fullH=${fullH})`);
+  }
+
+  const pathData = points
+    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x},${point.y}`)
+    .join(' ');
+
+  return `<svg
+      version='1.1'
+      xmlns='http://www.w3.org/2000/svg'
+      xmlns:xlink='http://www.w3.org/1999/xlink'
+      width='${fullW}' height='${fullH}'
+  >
+    <defs/>
+    <g><g>
+      <path
+        d='${pathData}'
+        fill='none'
+        stroke='${TARGET_TOOL_STATE.strokeColor}'
+        stroke-width='${TARGET_TOOL_STATE.strokeWidth}'
         stroke-miterlimit='10'
         stroke-dasharray=''
       />
