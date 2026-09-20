@@ -19,18 +19,22 @@ const ensureMaeData = (item) => (
 );
 
 /**
- * Reads one poi's path input - its marker's center point, and the canvas's own pixel
- * dimensions - out of its saved target: the same coordinate space PoiNode markers themselves
- * render from (maeData.target.drawingState's single SHAPES_TOOL.POI shape, and
- * maeData.target.fullCanvaXYWH), never a live/on-screen Konva shape, which can be in zoomed
+ * Reads one poi's path input - its marker's center point, out of its saved target: the same
+ * coordinate space PoiNode markers themselves render from (maeData.target.drawingState's
+ * single SHAPES_TOOL.POI shape), never a live/on-screen Konva shape, which can be in zoomed
  * screen-space and would misalign the path against the canvas at any other zoom level.
+ *
+ * `maeData.target.fullCanvaXYWH` is read too when present, but is no longer required: a POI
+ * saved as a real IIIF PointSelector (see IIIFUtils.js's getIIIFTargetAsPointSelector) has no
+ * such field - a point selector has no notion of canvas size - unlike a legacy SvgSelector-
+ * traced POI, whose maeData reconstruction derives it from the traced SVG's own width/height.
  * @param {object} poiItem
- * @returns {{ x: number, y: number, fullCanvaXYWH: string } | null}
+ * @returns {{ x: number, y: number, fullCanvaXYWH: string|undefined } | null}
  */
 const getPoiPathPoint = (poiItem) => {
   const hydrated = ensureMaeData(poiItem);
   const target = hydrated.maeData?.target;
-  if (!target?.drawingState || !target?.fullCanvaXYWH) return null;
+  if (!target?.drawingState) return null;
 
   const drawingState = typeof target.drawingState === 'string'
     ? JSON.parse(target.drawingState)
@@ -39,6 +43,22 @@ const getPoiPathPoint = (poiItem) => {
   if (typeof shape?.x !== 'number' || typeof shape?.y !== 'number') return null;
 
   return { fullCanvaXYWH: target.fullCanvaXYWH, x: shape.x, y: shape.y };
+};
+
+/** A journey's synthesized path is sized to some `fullW`/`fullH` pair purely to produce a
+ * valid wrapping `<svg>` - Mirador's CanvasAnnotationDisplay.svgContext() draws each path's `d`
+ * directly in canvas pixel space and never reads the wrapper's own width/height attributes, so
+ * this value is cosmetic, not positional. Used only when no POI on the journey supplies a real
+ * one (i.e. every POI was saved as a PointSelector - see getPoiPathPoint's own doc): a bounding
+ * box of the points themselves, padded slightly, is always large enough to contain the curve.
+ * @param {{ x: number, y: number }[]} points
+ * @returns {[number, number]} [fullW, fullH]
+ */
+const fallbackFullCanvasSize = (points) => {
+  const padding = 50;
+  const fullW = Math.max(...points.map((point) => point.x)) + padding;
+  const fullH = Math.max(...points.map((point) => point.y)) + padding;
+  return [fullW, fullH];
 };
 
 /** A journey's own saved `target` is never a reliable source of the real canvas id: on read,
@@ -58,8 +78,7 @@ const canvasIdOfJourney = (journeyItem) => (
 /**
  * Recomputes `journeyId`'s path target from its current POIs (issue #358): a smooth open curve
  * through each POI's center point, ordered by dbf:journey.order (groupAnnotationItems already
- * provides that ordering - no new data model needed), sized to the canvas's own pixel
- * dimensions so Mirador doesn't scale/position it incorrectly relative to the image.
+ * provides that ordering - no new data model needed).
  *
  * With fewer than two usable POI points, the journey has no line to draw and its target is
  * reset back to the plain canvas id (no path). Both the manual "refresh path" action and every
@@ -90,11 +109,13 @@ export const recomputeJourneyPath = (journeyId, items, canvasId) => {
     fullCanvaXYWH ??= point.fullCanvaXYWH;
   });
 
-  if (points.length < 2 || !fullCanvaXYWH || !resolvedCanvasId) {
+  if (points.length < 2 || !resolvedCanvasId) {
     return { ...journeyEntry.item, target: resolvedCanvasId ?? journeyEntry.item.target };
   }
 
-  const [, , fullW, fullH] = fullCanvaXYWH.split(',');
+  const [fullW, fullH] = fullCanvaXYWH
+    ? fullCanvaXYWH.split(',').slice(2)
+    : fallbackFullCanvasSize(points);
   const svg = smoothCurveToSvg({ fullH, fullW, points });
 
   return {

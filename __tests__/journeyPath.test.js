@@ -23,6 +23,23 @@ const poi = (id, {
   },
 });
 
+/** Builds a raw poi annotation item saved as a real IIIF PointSelector (see IIIFUtils.js's
+ * getIIIFTargetAsPointSelector) - unlike `poi` above, its maeData.target carries no
+ * fullCanvaXYWH at all, since a point selector has no notion of canvas size. */
+const pointSelectorPoi = (id, {
+  x, y, journeyId, order,
+} = {}) => ({
+  body: [],
+  'dbf:journey': journeyId ? { id: journeyId, order } : undefined,
+  'dbf:kind': 'POI',
+  id,
+  maeData: {
+    target: {
+      drawingState: JSON.stringify({ shapes: [{ type: 'poi', x, y }] }),
+    },
+  },
+});
+
 describe('recomputeJourneyPath', () => {
   it('returns null when journeyId matches no journey in items', () => {
     const items = [journey('journey-1')];
@@ -172,5 +189,55 @@ describe('recomputeJourneyPath', () => {
     const updated = recomputeJourneyPath('journey-1', items);
 
     expect(updated.target.selector[0].value).toContain('M 1,1 L 2,2');
+  });
+
+  it('still builds a path from POIs saved as a PointSelector (no fullCanvaXYWH on any of them)', () => {
+    const items = [
+      journey('journey-1'),
+      pointSelectorPoi('poi-a', {
+        journeyId: 'journey-1', order: 0, x: 100, y: 200,
+      }),
+      pointSelectorPoi('poi-b', {
+        journeyId: 'journey-1', order: 1, x: 300, y: 400,
+      }),
+    ];
+
+    const updated = recomputeJourneyPath('journey-1', items);
+
+    expect(updated.target.source).toBe('canvas/1');
+    expect(updated.target.selector[0].type).toBe('SvgSelector');
+    expect(updated.target.selector[0].value).toContain('M 100,200 L 300,400');
+  });
+
+  it('falls back to a bounding box of the points for the svg size when no poi supplies fullCanvaXYWH', () => {
+    const items = [
+      journey('journey-1'),
+      pointSelectorPoi('poi-a', {
+        journeyId: 'journey-1', order: 0, x: 100, y: 50,
+      }),
+      pointSelectorPoi('poi-b', {
+        journeyId: 'journey-1', order: 1, x: 300, y: 400,
+      }),
+    ];
+
+    const updated = recomputeJourneyPath('journey-1', items);
+
+    expect(updated.target.selector[0].value).toContain("width='350' height='450'");
+  });
+
+  it('prefers a real fullCanvaXYWH over the bounding-box fallback when at least one poi has one', () => {
+    const items = [
+      journey('journey-1'),
+      pointSelectorPoi('poi-a', {
+        journeyId: 'journey-1', order: 0, x: 100, y: 200,
+      }),
+      poi('poi-b', {
+        fullH: 600, fullW: 800, journeyId: 'journey-1', order: 1, x: 300, y: 400,
+      }),
+    ];
+
+    const updated = recomputeJourneyPath('journey-1', items);
+
+    expect(updated.target.selector[0].value).toContain("width='800' height='600'");
   });
 });
