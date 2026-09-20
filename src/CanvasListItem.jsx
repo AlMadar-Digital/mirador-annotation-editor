@@ -87,7 +87,7 @@ const CanvasListItem = forwardRef((props, ref) => {
         .then((annoPage) => {
           receiveAnnotation(canvas.id, adapter.annotationPageId, annoPage);
           if (!journeyId || !annoPage?.items) return;
-          const updatedJourney = recomputeJourneyPath(journeyId, annoPage.items);
+          const updatedJourney = recomputeJourneyPath(journeyId, annoPage.items, canvas.id);
           if (!updatedJourney) return;
           adapter.update(updatedJourney).then((updatedAnnoPage) => {
             receiveAnnotation(canvas.id, adapter.annotationPageId, updatedAnnoPage);
@@ -117,7 +117,7 @@ const CanvasListItem = forwardRef((props, ref) => {
       Object.values(pages).forEach((page) => {
         const items = page?.json?.items;
         if (!items?.some((item) => item.id === annotationid)) return;
-        const updatedJourney = recomputeJourneyPath(annotationid, items);
+        const updatedJourney = recomputeJourneyPath(annotationid, items, canvas.id);
         if (!updatedJourney) return;
         const adapter = storageAdapter(canvas.id);
         adapter.update(updatedJourney).then((annoPage) => {

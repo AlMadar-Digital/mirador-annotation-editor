@@ -41,9 +41,16 @@ const getPoiPathPoint = (poiItem) => {
   return { fullCanvaXYWH: target.fullCanvaXYWH, x: shape.x, y: shape.y };
 };
 
-/** A journey's own `target` is either the plain canvas id (no path synthesized yet) or an
- * SvgSelector/FragmentSelector pair whose `source` is the canvas id (see
- * getIIIFTargetAsFragmentSVGSelector) - either way, this is the canvas id it targets. */
+/** A journey's own saved `target` is never a reliable source of the real canvas id: on read,
+ * the server (journeyToAnnotation) fills an unset target with a synthetic placeholder whose
+ * `source` is just the journey's own annotation id (`maps://annotations/<id>/canvas`), not the
+ * IIIF canvas this journey's path is drawn on - Mirador's own AnnotationsOverlay matches a
+ * resource's target id against real `canvasWorld.canvases` ids to decide what to draw where, so
+ * a path saved against that placeholder id silently never renders (it never matches any real
+ * canvas). Every caller of recomputeJourneyPath already knows the real canvas it's operating on
+ * (it's what it passed to `storageAdapter`), so this is a fallback only for the case a caller
+ * hasn't been updated to pass one - used mainly by tests exercising this function directly.
+ */
 const canvasIdOfJourney = (journeyItem) => (
   typeof journeyItem.target === 'string' ? journeyItem.target : journeyItem.target?.source
 );
@@ -61,15 +68,19 @@ const canvasIdOfJourney = (journeyItem) => (
  * @param {string} journeyId
  * @param {object[]} items - the canvas's raw AnnotationPage items (as passed to
  *   groupAnnotationItems elsewhere in this list)
+ * @param {string} [canvasId] - the real IIIF canvas id the computed path's target should point
+ *   at (every caller already has this - it's what it passes to `storageAdapter`). Falls back to
+ *   whatever the journey's own saved target claims when omitted, which is usually wrong (see
+ *   canvasIdOfJourney's own doc) - callers should always pass this explicitly.
  * @returns {object|null} the journey annotation with an updated `target`, or `null` when
  *   `journeyId` doesn't match any journey in `items`
  */
-export const recomputeJourneyPath = (journeyId, items) => {
+export const recomputeJourneyPath = (journeyId, items, canvasId) => {
   const journeyEntry = groupAnnotationItems(items)
     .find((entry) => entry.kind === 'Journey' && entry.id === journeyId);
   if (!journeyEntry) return null;
 
-  const canvasId = canvasIdOfJourney(journeyEntry.item);
+  const resolvedCanvasId = canvasId ?? canvasIdOfJourney(journeyEntry.item);
   const points = [];
   let fullCanvaXYWH;
   journeyEntry.pois.forEach((poi) => {
@@ -79,8 +90,8 @@ export const recomputeJourneyPath = (journeyId, items) => {
     fullCanvaXYWH ??= point.fullCanvaXYWH;
   });
 
-  if (points.length < 2 || !fullCanvaXYWH || !canvasId) {
-    return { ...journeyEntry.item, target: canvasId ?? journeyEntry.item.target };
+  if (points.length < 2 || !fullCanvaXYWH || !resolvedCanvasId) {
+    return { ...journeyEntry.item, target: resolvedCanvasId ?? journeyEntry.item.target };
   }
 
   const [, , fullW, fullH] = fullCanvaXYWH.split(',');
@@ -88,6 +99,6 @@ export const recomputeJourneyPath = (journeyId, items) => {
 
   return {
     ...journeyEntry.item,
-    target: getIIIFTargetAsFragmentSVGSelector({ svg }, canvasId),
+    target: getIIIFTargetAsFragmentSVGSelector({ svg }, resolvedCanvasId),
   };
 };

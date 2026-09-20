@@ -248,7 +248,7 @@ export default function SortableCanvasAnnotationsList({
    * pure re-drop of a poi back where it started doesn't produce a spurious write. */
   const recomputeAndPersistJourney = useCallback((journeyId, annoPageItems) => {
     if (!journeyId) return Promise.resolve();
-    const updatedJourney = recomputeJourneyPath(journeyId, annoPageItems);
+    const updatedJourney = recomputeJourneyPath(journeyId, annoPageItems, canvasId);
     if (!updatedJourney) return Promise.resolve();
     const currentJourney = (annoPageItems ?? []).find((item) => item.id === journeyId);
     if (currentJourney

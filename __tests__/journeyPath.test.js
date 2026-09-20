@@ -136,6 +136,27 @@ describe('recomputeJourneyPath', () => {
     expect(updated.target).toBe('canvas/1');
   });
 
+  it('targets the real canvas id passed in, not whatever the journey\'s own saved target claims (issue: a fresh journey\'s target is a server-side placeholder - maps://annotations/<id>/canvas - that never matches a real Mirador canvas, so a path saved against it silently never renders)', () => {
+    const items = [
+      journey('journey-1', {
+        target: {
+          selector: { type: 'FragmentSelector', value: 'xywh=0,0,0,0' },
+          source: 'maps://annotations/journey-1/canvas',
+        },
+      }),
+      poi('poi-a', {
+        journeyId: 'journey-1', order: 0, x: 100, y: 200,
+      }),
+      poi('poi-b', {
+        journeyId: 'journey-1', order: 1, x: 300, y: 400,
+      }),
+    ];
+
+    const updated = recomputeJourneyPath('journey-1', items, 'real-canvas-id');
+
+    expect(updated.target.source).toBe('real-canvas-id');
+  });
+
   it('skips a poi with no saved target (e.g. not yet placed) when building the path', () => {
     const items = [
       journey('journey-1'),
