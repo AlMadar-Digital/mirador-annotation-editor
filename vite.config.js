@@ -9,6 +9,13 @@ const peers = Object.keys(pkg?.peerDependencies ?? {});
 const externalIds = [
   ...peers,
   /^react(\/.*)?$/, /^react-dom(\/.*)?$/,
+  // react-konva pulls in react-reconciler, which reads a React-internals export
+  // whose name changes across React majors (__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED
+  // on React 18, __CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE on React 19).
+  // Bundling one version bakes in one or the other and crashes on the other major, so this
+  // is externalized like react/react-dom: each host supplies its own react-konva matching
+  // whatever React major it runs.
+  /^react-konva(\/.*)?$/,
   /^@mui\/material(\/.*)?$/, /^@mui\/system(\/.*)?$/,
   /^@emotion\/react(\/.*)?$/, /^@emotion\/styled(\/.*)?$/,
   /^dbf-mirador(\/.*)?$/,
