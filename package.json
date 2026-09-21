@@ -1,6 +1,6 @@
 {
   "name": "dbf-mirador-annotation-editor",
-  "version": "1.5.1",
+  "version": "1.6.0-testing2",
   "description": "Mirador annotation editor plugin in a React component. Mirador 4 compatible",
   "repository": {
     "type": "git",
@@ -132,8 +132,8 @@
     "ckeditor5": "~47.6.1",
     "dbf-mirador": "^4.2.4",
     "prop-types": "^15.7.2",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "react": "^18.3.1 || ^19.0.0",
+    "react-dom": "^18.3.1 || ^19.0.0",
     "style-loader": "^4.0.0",
     "uuid": "^13.0.0"
   },
