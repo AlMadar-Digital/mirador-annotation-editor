@@ -109,6 +109,7 @@ export const fr = {
   remove_from_journey: 'Retirer du parcours',
   replace: 'Remplacer',
   save: 'Sauvegarder',
+  saving: 'Enregistrement…',
   scale: 'Échelle',
   select_cursor: 'Sélectionner le curseur',
   selected_object: 'Objet sélectionné',

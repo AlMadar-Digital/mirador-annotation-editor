@@ -109,6 +109,7 @@ export const ar = {
   remove_from_journey: "إزالة من المسار",
   replace: "استبدال",
   save: "حفظ",
+  saving: "جارٍ الحفظ…",
   scale: "المقياس",
   select_cursor: "مؤشر التحديد",
   selected_object: "العنصر المحدد",

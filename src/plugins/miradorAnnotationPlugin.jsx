@@ -11,7 +11,7 @@ import {
   getCompanionWindowsForContent,
 } from 'dbf-mirador';
 import { useDispatch, useSelector } from 'react-redux';
-import { Tooltip } from '@mui/material';
+import { CircularProgress, Tooltip } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import SingleCanvasDialog from '../SingleCanvasDialog';
@@ -19,6 +19,7 @@ import AnnotationExportDialog from '../AnnotationExportDialog';
 import LocalStorageAdapter from '../annotationAdapter/LocalStorageAdapter';
 import translations from '../locales/locales';
 import HotkeyTooltip from "../hotkeys/HotkeyTooltip";
+import { MAE_POI_SAVING_EVENT } from '../hotkeys/hotkeysEvents';
 
 const StyledDiv = styled('div')(() => ({
   display: 'flex',
@@ -38,8 +39,19 @@ function MiradorAnnotation(
   const [annotationExportDialogOpen, setAnnotationExportDialogOpen] = useState(false);
   const [singleCanvasDialogOpen, setSingleCanvasDialogOpen] = useState(false);
   const [currentCompanionWindowId, setCurrentCompanionWindowId] = useState(null);
+  // Mirrors a POI reorder/add save still in flight in SortableCanvasAnnotationsList - a
+  // separate companion window/plugin tree, so it can only reach this button via a DOM event
+  // (see MAE_POI_SAVING_EVENT's own comment).
+  const [poiSaving, setPoiSaving] = useState(false);
 
   const dispatch = useDispatch();
+
+  useEffect(() => {
+    /** Reflects SortableCanvasAnnotationsList's pending persist count on this button. */
+    const handlePoiSaving = (event) => setPoiSaving(event.detail.saving);
+    document.addEventListener(MAE_POI_SAVING_EVENT, handlePoiSaving);
+    return () => document.removeEventListener(MAE_POI_SAVING_EVENT, handlePoiSaving);
+  }, []);
 
   /** Open the companion window for annotation */
   const addCompanionWindow = (content, additionalProps) => {
@@ -86,22 +98,33 @@ function MiradorAnnotation(
       <TargetComponent {...targetProps} />
       {
         config?.annotation?.readonly === true ? null : (
-          <Tooltip title={<HotkeyTooltip label={t('create_annotation')} action="create" />}>
-            <span>
-              <MiradorMenuButton
-                aria-label={t('create_annotation')}
-                onClick={
-                  windowViewType === 'single'
-                    ? openCreateAnnotationCompanionWindow
-                    : toggleSingleCanvasDialogOpen
-                }
-                size="small"
-                disabled={!annotationEditCompanionWindowIsOpened}
-              >
-                <AddBoxIcon />
-              </MiradorMenuButton>
-            </span>
-          </Tooltip>
+          <>
+            <Tooltip title={<HotkeyTooltip label={t('create_annotation')} action="create" />}>
+              <span>
+                <MiradorMenuButton
+                  aria-label={t('create_annotation')}
+                  onClick={
+                    windowViewType === 'single'
+                      ? openCreateAnnotationCompanionWindow
+                      : toggleSingleCanvasDialogOpen
+                  }
+                  size="small"
+                  disabled={!annotationEditCompanionWindowIsOpened}
+                >
+                  <AddBoxIcon />
+                </MiradorMenuButton>
+              </span>
+            </Tooltip>
+            {poiSaving && (
+              <Tooltip title={t('saving')}>
+                <CircularProgress
+                  aria-label={t('saving')}
+                  size={16}
+                  sx={{ alignSelf: 'center', mx: 1 }}
+                />
+              </Tooltip>
+            )}
+          </>
         )
       }
       {singleCanvasDialogOpen && (

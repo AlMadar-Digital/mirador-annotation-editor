@@ -109,6 +109,7 @@ export const en = {
   remove_from_journey: 'Remove from journey',
   replace: 'Replace',
   save: 'Save',
+  saving: 'Saving…',
   scale: 'Scale',
   select_cursor: 'Select Cursor',
   selected_object: 'Selected object',

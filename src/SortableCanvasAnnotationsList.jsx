@@ -12,6 +12,22 @@ import {
 import { recomputeJourneyPath } from './journeyPath';
 import { TEMPLATE } from './annotationForm/AnnotationFormUtils';
 import { TEMPLATE_REGISTRY } from './annotationForm/templates/registry';
+import { MAE_POI_SAVING_EVENT } from './hotkeys/hotkeysEvents';
+
+// Module-level (not per component instance): a canvas's top-level list and every journey's
+// nested list within it all persist through this same file, and a multi-canvas view can mount
+// several instances of this component at once - the "create annotation" toolbar button (a
+// sibling plugin tree, see MAE_POI_SAVING_EVENT's own comment) cares whether ANY of them is
+// still writing, not just one.
+let pendingPersistCount = 0;
+
+/** Notifies MiradorAnnotation (toolbar) of the current pendingPersistCount, coalesced to a
+ * boolean since it only ever needs to know "something is still saving" vs "everything settled". */
+const notifyPoiSaving = () => {
+  document.dispatchEvent(
+    new CustomEvent(MAE_POI_SAVING_EVENT, { detail: { saving: pendingPersistCount > 0 } }),
+  );
+};
 
 /** Maps a raw annotation item back to its template registry id (issue #377), mirroring
  * IIIFUtils.js's own dbf:kind/dbf:linkedMap routing - the only two things this list needs to
@@ -228,6 +244,8 @@ export default function SortableCanvasAnnotationsList({
 
   const persist = useCallback((annotation) => {
     const adapter = storageAdapter(canvasId);
+    pendingPersistCount += 1;
+    if (pendingPersistCount === 1) notifyPoiSaving();
     /** Runs this one annotation's write once every write queued ahead of it has settled. */
     const run = () => adapter.update(annotation).then((annoPage) => {
       receiveAnnotation(canvasId, adapter.annotationPageId, annoPage);
@@ -237,6 +255,10 @@ export default function SortableCanvasAnnotationsList({
     // Keep the queue moving even if this write failed - a rejection here must not stall
     // every persist queued after it.
     persistQueueRef.current = result.catch(() => {});
+    result.finally(() => {
+      pendingPersistCount -= 1;
+      if (pendingPersistCount === 0) notifyPoiSaving();
+    });
     return result;
   }, [storageAdapter, canvasId, receiveAnnotation]);
 
