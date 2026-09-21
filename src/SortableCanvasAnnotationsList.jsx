@@ -9,6 +9,7 @@ import CanvasListItem from './CanvasListItem';
 import {
   annotationTitle, groupAnnotationItems, withJourneyOrder, withTopLevelOrder,
 } from './annotationListGrouping';
+import { recomputeJourneyPath } from './journeyPath';
 import { TEMPLATE } from './annotationForm/AnnotationFormUtils';
 import { TEMPLATE_REGISTRY } from './annotationForm/templates/registry';
 
@@ -39,7 +40,7 @@ const JOURNEY_GROUP = {
  * (redux-derived) poi list; `persist` is the shared, stateless save callback.
  */
 function JourneyPoiList({
-  journeyId, persist, pois, renderRow,
+  journeyId, persist, pois, recomputeAndPersistJourney, renderRow,
 }) {
   const isDraggingRef = useRef(false);
   // A drop fires one persist() per item in this list (see handleSetList below), each a
@@ -75,13 +76,20 @@ function JourneyPoiList({
     const updated = newList.map((poi, position) => withJourneyOrder(poi, journeyId, position));
     setLocalPois(updated);
     pendingWritesRef.current += 1;
+    let lastAnnoPage;
     updated.reduce(
-      (chain, entry) => chain.then(() => persist(entry)),
+      (chain, entry) => chain.then(() => persist(entry).then((annoPage) => {
+        lastAnnoPage = annoPage;
+      })),
       Promise.resolve(),
+    ).then(
+      // One recompute for the whole batch (issue #358), not per persisted item - membership
+      // and/or order of this journey changed regardless of which poi moved.
+      () => (lastAnnoPage ? recomputeAndPersistJourney(journeyId, lastAnnoPage.items) : undefined),
     ).finally(() => {
       pendingWritesRef.current -= 1;
     });
-  }, [journeyId, persist]);
+  }, [journeyId, persist, recomputeAndPersistJourney]);
 
   return (
     <ReactSortable
@@ -109,6 +117,7 @@ JourneyPoiList.propTypes = {
   persist: PropTypes.func.isRequired,
   // eslint-disable-next-line react/forbid-prop-types -- raw annotation JSON, no fixed shape
   pois: PropTypes.arrayOf(PropTypes.object).isRequired,
+  recomputeAndPersistJourney: PropTypes.func.isRequired,
   renderRow: PropTypes.func.isRequired,
 };
 
@@ -222,6 +231,7 @@ export default function SortableCanvasAnnotationsList({
     /** Runs this one annotation's write once every write queued ahead of it has settled. */
     const run = () => adapter.update(annotation).then((annoPage) => {
       receiveAnnotation(canvasId, adapter.annotationPageId, annoPage);
+      return annoPage;
     });
     const result = persistQueueRef.current.then(run, run);
     // Keep the queue moving even if this write failed - a rejection here must not stall
@@ -230,17 +240,53 @@ export default function SortableCanvasAnnotationsList({
     return result;
   }, [storageAdapter, canvasId, receiveAnnotation]);
 
+  /** Recomputes journeyId's path from `annoPageItems` (the freshest known canonical items for
+   * this canvas - typically the AnnotationPage a just-settled persist() resolved with, since
+   * the `items` prop may not have re-rendered yet) and persists it through the same queue -
+   * issue #358's automatic trigger, shared by every POI membership/order/delete site below and
+   * by the manual "refresh path" fallback action. A no-op when nothing actually changed, so a
+   * pure re-drop of a poi back where it started doesn't produce a spurious write. */
+  const recomputeAndPersistJourney = useCallback((journeyId, annoPageItems) => {
+    if (!journeyId) return Promise.resolve();
+    const updatedJourney = recomputeJourneyPath(journeyId, annoPageItems, canvasId);
+    if (!updatedJourney) return Promise.resolve();
+    const currentJourney = (annoPageItems ?? []).find((item) => item.id === journeyId);
+    if (currentJourney
+        && JSON.stringify(currentJourney.target) === JSON.stringify(updatedJourney.target)) {
+      return Promise.resolve();
+    }
+    return persist(updatedJourney);
+  }, [persist]);
+
   const handleTopLevelSetList = useCallback((newList) => {
+    // Capture, before withTopLevelOrder clears it, any journey a newly-dropped-in poi is
+    // leaving (issue #358) - a plain top-level reorder touches no journey itself, but a poi
+    // dragged out of a journey's nested list into this one needs that journey's path
+    // recomputed too (its own nested list also fires its own handleSetList for the *within*
+    // case, but not for "moved all the way out to the top level").
+    const vacatedJourneyIds = new Set(
+      newList.map((entry) => entry['dbf:journey']?.id).filter(Boolean),
+    );
     const updated = newList.map((entry, position) => withTopLevelOrder(entry, position));
     setLocalTopLevel(updated);
     pendingWritesRef.current += 1;
+    let lastAnnoPage;
     updated.reduce(
-      (chain, entry) => chain.then(() => persist(entry)),
+      (chain, entry) => chain.then(() => persist(entry).then((annoPage) => {
+        lastAnnoPage = annoPage;
+      })),
       Promise.resolve(),
-    ).finally(() => {
+    ).then(() => {
+      if (!lastAnnoPage) return undefined;
+      return Promise.all(
+        [...vacatedJourneyIds].map(
+          (vacatedJourneyId) => recomputeAndPersistJourney(vacatedJourneyId, lastAnnoPage.items),
+        ),
+      );
+    }).finally(() => {
       pendingWritesRef.current -= 1;
     });
-  }, [persist]);
+  }, [persist, recomputeAndPersistJourney]);
 
   const handleSelect = useCallback((annotationId) => {
     if (window.getSelection()?.toString()) return;
@@ -267,11 +313,22 @@ export default function SortableCanvasAnnotationsList({
    * only ever touches the ONE moved poi's own dbf:journey/dbf:order - every other item's
    * position is already valid and needs no rewriting. */
   const handleMoveToJourney = useCallback((item, journeyId) => {
+    const previousJourneyId = item['dbf:journey']?.id ?? null;
     const updated = journeyId
       ? withJourneyOrder(item, journeyId, (poisByJourneyId.get(journeyId) ?? []).length)
       : withTopLevelOrder(item, localTopLevel.length);
-    persist(updated);
-  }, [poisByJourneyId, persist, localTopLevel.length]);
+    persist(updated).then((annoPage) => {
+      if (!annoPage) return undefined;
+      // issue #358: this poi's own membership changed, so both the journey it joined and the
+      // one it left (if any, and if different) need their path recomputed.
+      const affectedJourneyIds = new Set([journeyId, previousJourneyId].filter(Boolean));
+      return Promise.all(
+        [...affectedJourneyIds].map(
+          (affectedJourneyId) => recomputeAndPersistJourney(affectedJourneyId, annoPage.items),
+        ),
+      );
+    });
+  }, [poisByJourneyId, persist, localTopLevel.length, recomputeAndPersistJourney]);
 
   /** Renders one row (a journey, a standalone poi, or a poi nested under a journey). */
   const renderRow = (item) => {
@@ -347,6 +404,7 @@ export default function SortableCanvasAnnotationsList({
                 journeyId={item.id}
                 persist={persist}
                 pois={poisByJourneyId.get(item.id) ?? []}
+                recomputeAndPersistJourney={recomputeAndPersistJourney}
                 renderRow={renderRow}
               />
             </li>

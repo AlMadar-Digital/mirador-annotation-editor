@@ -105,6 +105,7 @@ export const en = {
   pressEnterToAddTag: 'Add your tag and press "Enter"',
   pressEscapeToFinish: 'Press "Esc" to finish the line',
   rectangle: 'Rectangle',
+  refresh_journey_path: 'Refresh path',
   remove_from_journey: 'Remove from journey',
   replace: 'Replace',
   save: 'Save',

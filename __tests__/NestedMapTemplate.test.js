@@ -92,10 +92,7 @@ describe('convertNestedMapAnnotationToBeSaved', () => {
     expect(result['dbf:kind']).toBe('POI');
     expect(result['dbf:linkedMap']).toEqual({ id: 'map-7', titleEn: 'Old City' });
     expect(result.target).toEqual({
-      selector: [
-        { type: 'SvgSelector', value: '<svg><circle cx="10" cy="20" r="5"/></svg>' },
-        { type: 'FragmentSelector', value: 'canvas1#' },
-      ],
+      selector: { type: 'PointSelector', x: 10, y: 20 },
       source: 'canvas1',
     });
   });

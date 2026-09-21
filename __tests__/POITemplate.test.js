@@ -294,10 +294,7 @@ describe('convertPoiAnnotationToBeSaved', () => {
     expect(result.motivation).toBe('identifying');
     expect(result['dbf:kind']).toBe('POI');
     expect(result.target).toEqual({
-      selector: [
-        { type: 'SvgSelector', value: '<svg><circle cx="10" cy="20" r="5"/></svg>' },
-        { type: 'FragmentSelector', value: 'canvas1#' },
-      ],
+      selector: { type: 'PointSelector', x: 10, y: 20 },
       source: 'canvas1',
     });
   });

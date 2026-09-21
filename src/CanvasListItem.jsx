@@ -18,9 +18,11 @@ import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import InfoIcon from '@mui/icons-material/Info';
 import RouteIcon from '@mui/icons-material/Route';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import AnnotationActionsContext from './AnnotationActionsContext';
 import WhoAndWhenFormSection, { TOOLTIP_MODE } from './annotationForm/WhoAndWhenFormSection';
 import HotkeyTooltip from "./hotkeys/HotkeyTooltip";
+import { recomputeJourneyPath } from './journeyPath';
 
 // TODO missing TRAD
 const CanvasListItem = forwardRef((props, ref) => {
@@ -75,12 +77,53 @@ const CanvasListItem = forwardRef((props, ref) => {
       storageAdapter,
     } = context;
     const { annotationid } = props;
+    // Captured before the delete, since the deleted item won't be in `annoPage.items` any more
+    // to read it back from (issue #358): a POI belonging to a journey needs that journey's path
+    // recomputed once it's gone.
+    const journeyId = annotationData?.['dbf:journey']?.id ?? null;
     canvases.forEach((canvas) => {
       const adapter = storageAdapter(canvas.id);
       adapter.delete(annotationid)
         .then((annoPage) => {
           receiveAnnotation(canvas.id, adapter.annotationPageId, annoPage);
+          if (!journeyId || !annoPage?.items) return;
+          const updatedJourney = recomputeJourneyPath(journeyId, annoPage.items, canvas.id);
+          if (!updatedJourney) return;
+          adapter.update(updatedJourney).then((updatedAnnoPage) => {
+            receiveAnnotation(canvas.id, adapter.annotationPageId, updatedAnnoPage);
+          });
         });
+    });
+  };
+  /**
+   * Manually recomputes a journey's path from its current POIs (issue #358) - a fallback/repair
+   * action for when the path has drifted, not the primary mechanism (every POI
+   * membership/order/delete change already triggers this automatically from
+   * SortableCanvasAnnotationsList). Only ever shown for a Journey row.
+   * @function handleRefreshPath
+   * @returns {void}
+   */
+  const handleRefreshPath = () => {
+    const {
+      annotationsOnCanvases,
+      canvases,
+      receiveAnnotation,
+      storageAdapter,
+    } = context;
+    const { annotationid } = props;
+    canvases.forEach((canvas) => {
+      const pages = annotationsOnCanvases[canvas.id];
+      if (!pages) return;
+      Object.values(pages).forEach((page) => {
+        const items = page?.json?.items;
+        if (!items?.some((item) => item.id === annotationid)) return;
+        const updatedJourney = recomputeJourneyPath(annotationid, items, canvas.id);
+        if (!updatedJourney) return;
+        const adapter = storageAdapter(canvas.id);
+        adapter.update(updatedJourney).then((annoPage) => {
+          receiveAnnotation(canvas.id, adapter.annotationPageId, annoPage);
+        });
+      });
     });
   };
   /**
@@ -261,6 +304,22 @@ const CanvasListItem = forwardRef((props, ref) => {
                 </ToggleButton>
               </span>
             </Tooltip>
+            )}
+
+            {context.config?.annotation?.readonly !== true
+              && annotationData?.['dbf:kind'] === 'Journey' && (
+              <Tooltip title={t('refresh_journey_path')}>
+                <span>
+                  <ToggleButton
+                    aria-label="Refresh path"
+                    onClick={handleRefreshPath}
+                    value="refresh-path"
+                    disabled={!context.annotationEditCompanionWindowIsOpened}
+                  >
+                    <RefreshIcon />
+                  </ToggleButton>
+                </span>
+              </Tooltip>
             )}
 
             {context.config?.annotation?.readonly !== true

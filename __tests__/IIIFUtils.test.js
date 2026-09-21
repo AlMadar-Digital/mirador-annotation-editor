@@ -168,6 +168,24 @@ describe('getIIIFTargetFromMaeData', () => {
 
     expect(getIIIFTargetFromMaeData(maeData, 'canvas1')).toBe('canvas1#xywh=0,0,800,600');
   });
+
+  it.each([TEMPLATE.POI_TYPE, TEMPLATE.NESTED_MAP_TYPE])(
+    'always saves a POI/NestedMap marker as a PointSelector, never a rectangle/SVG target (%s)',
+    (templateType) => {
+      const shape = {
+        ...simpleRectangleShape(), type: SHAPES_TOOL.POI, x: 15, y: 25,
+      };
+      const maeData = {
+        target: { drawingState: { shapes: [shape] } },
+        templateType,
+      };
+
+      expect(getIIIFTargetFromMaeData(maeData, 'canvas1')).toEqual({
+        selector: { type: 'PointSelector', x: 15, y: 25 },
+        source: 'canvas1',
+      });
+    },
+  );
 });
 
 describe('convertAnnotationStateToBeSaved', () => {
@@ -405,6 +423,22 @@ describe('convertIIIFAnnoToMaeData', () => {
     expect(result.maeData.target.svg).toContain('<svg');
   });
 
+  it('rebuilds a POI\'s maeData.target from a PointSelector as a SHAPES_TOOL.POI marker at the selector\'s x/y', () => {
+    const anno = {
+      'dbf:kind': 'POI',
+      id: 'anno1',
+      motivation: 'identifying',
+      target: { selector: { type: 'PointSelector', x: 15, y: 25 } },
+    };
+
+    const result = convertIIIFAnnoToMaeData(anno);
+    const drawingState = JSON.parse(result.maeData.target.drawingState);
+
+    expect(drawingState.shapes).toHaveLength(1);
+    expect(drawingState.shapes[0]).toMatchObject({ type: SHAPES_TOOL.POI, x: 15, y: 25 });
+    expect(drawingState.currentShape).toMatchObject({ type: SHAPES_TOOL.POI });
+  });
+
   describe('with a stubbed SVGGraphicsElement.getBBox', () => {
     // happy-dom's SVGGraphicsElement.getBBox is a stub that always returns a zero rect:
     // override it so the (real-browser-only) bbox extraction path is exercised deterministically.
@@ -552,7 +586,7 @@ describe('convertIIIFAnnoToMaeData', () => {
     const anno = {
       bodyValue: 'x',
       id: 'anno1',
-      target: { selector: { type: 'PointSelector', value: 'x=1,y=2' } },
+      target: { selector: { type: 'UnknownSelector', value: 'x=1,y=2' } },
     };
 
     const result = convertIIIFAnnoToMaeData(anno);

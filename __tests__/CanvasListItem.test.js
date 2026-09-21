@@ -3,7 +3,9 @@ import userEvent from '@testing-library/user-event';
 
 import CanvasListItem from '../src/CanvasListItem';
 import AnnotationActionsContext from '../src/AnnotationActionsContext';
-import { fireEvent, render, screen } from './test-utils';
+import {
+  fireEvent, render, screen, waitFor,
+} from './test-utils';
 
 const receiveAnnotation = vi.fn();
 const storageAdapter = vi.fn(() => ({
@@ -378,6 +380,112 @@ describe('CanvasListItem', () => {
 
       expect(onMoveToJourney)
         .toHaveBeenCalledWith(null);
+    });
+  });
+
+  describe('journey path auto-recompute (issue #358)', () => {
+    /** A raw poi item with an already-placed marker, as finalizeSpatialTarget would have saved
+     * it - the input recomputeJourneyPath reads a poi's center point from. */
+    const poiWithTarget = (id, journeyId, order, x, y) => ({
+      'dbf:journey': { id: journeyId, order },
+      'dbf:kind': 'POI',
+      id,
+      maeData: {
+        target: {
+          drawingState: JSON.stringify({ shapes: [{ type: 'poi', x, y }] }),
+          fullCanvaXYWH: '0,0,800,600',
+        },
+      },
+    });
+
+    const journeyItem = {
+      'dbf:kind': 'Journey', id: 'journey/1', maeData: { templateType: 'journey' }, target: 'canv/1',
+    };
+
+    it('recomputes and persists the journey path after deleting one of its pois', async () => {
+      const poiA = poiWithTarget('poi/a', 'journey/1', 0, 10, 10);
+      const poiB = poiWithTarget('poi/b', 'journey/1', 1, 20, 20);
+      const poiC = poiWithTarget('poi/c', 'journey/1', 2, 30, 30);
+      const itemsAfterDelete = [journeyItem, poiB, poiC];
+
+      const del = vi.fn(async () => ({ items: itemsAfterDelete }));
+      const update = vi.fn(async (annotation) => ({
+        items: itemsAfterDelete.map((it) => (it.id === annotation.id ? annotation : it)),
+      }));
+      const localStorageAdapter = vi.fn(() => ({
+        annotationPageId: 'page/1', delete: del, update,
+      }));
+      const localReceiveAnnotation = vi.fn();
+
+      createWrapper({ annotationid: 'poi/a' }, {
+        annotationEditCompanionWindowIsOpened: true,
+        annotationsOnCanvases: {
+          'canv/1': {
+            'annoPage/1': { json: { items: [journeyItem, poiA, poiB, poiC] } },
+          },
+        },
+        canvases: [{ id: 'canv/1' }],
+        receiveAnnotation: localReceiveAnnotation,
+        storageAdapter: localStorageAdapter,
+      });
+
+      const li = screen.getByText('HelloWorld').closest('li');
+      await userEvent.hover(li);
+      await userEvent.click(screen.getByRole('button', { name: /delete/i }));
+
+      await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+      const journeyWrite = update.mock.calls[0][0];
+      expect(journeyWrite.id).toBe('journey/1');
+      expect(journeyWrite.target.selector[0].value).toContain('M 20,20 L 30,30');
+    });
+
+    it('shows a refresh-path button only for a Journey row, and recomputes+persists on click', async () => {
+      const poiA = poiWithTarget('poi/a', 'journey/1', 0, 5, 5);
+      const poiB = poiWithTarget('poi/b', 'journey/1', 1, 15, 15);
+      const items = [journeyItem, poiA, poiB];
+
+      const update = vi.fn(async (annotation) => ({
+        items: items.map((it) => (it.id === annotation.id ? annotation : it)),
+      }));
+      const localStorageAdapter = vi.fn(() => ({ annotationPageId: 'page/1', update }));
+      const localReceiveAnnotation = vi.fn();
+
+      createWrapper({ annotationid: 'journey/1' }, {
+        annotationEditCompanionWindowIsOpened: true,
+        annotationsOnCanvases: {
+          'canv/1': { 'annoPage/1': { json: { items } } },
+        },
+        canvases: [{ id: 'canv/1' }],
+        receiveAnnotation: localReceiveAnnotation,
+        storageAdapter: localStorageAdapter,
+      });
+
+      const li = screen.getByText('HelloWorld').closest('li');
+      await userEvent.hover(li);
+
+      const refreshButton = screen.getByRole('button', { name: /refresh path/i });
+      await userEvent.click(refreshButton);
+
+      await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+      expect(update.mock.calls[0][0].target.selector[0].value).toContain('M 5,5 L 15,15');
+    });
+
+    it('does not show the refresh-path button for a non-journey (poi) row', async () => {
+      createWrapper({}, {
+        annotationEditCompanionWindowIsOpened: true,
+        annotationsOnCanvases: {
+          'canv/1': {
+            'annoPage/1': { json: { items: [{ 'dbf:kind': 'POI', id: 'anno/1', maeData: {} }] } },
+          },
+        },
+        canvases: [{ id: 'canv/1' }],
+      });
+
+      const li = screen.getByText('HelloWorld').closest('li');
+      await userEvent.hover(li);
+
+      expect(screen.queryByRole('button', { name: /refresh path/i }))
+        .toBeNull();
     });
   });
 });

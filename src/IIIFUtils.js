@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 import {
   getKonvaAsDataURL,
+  getPoiMarkerRadius,
   getSvg,
   SHAPES_TOOL,
   OVERLAY_TOOL,
@@ -100,12 +101,30 @@ const getIIIFTargetFromRectangleShape = (maeTarget, canvasId, shape) => {
 };
 
 /**
+ * Get the IIIF target for a POI/NestedMap point shape as a real IIIF PointSelector
+ * (https://iiif.io/api/cookbook/recipe/0135-annotating-point-in-canvas/), instead of tracing
+ * the marker as an SvgSelector - avoids the bbox-guessing this previously required to recover
+ * a point from a traced circle path (see convertPointSelectorToMae for the read side).
+ * @param {string} canvasId
+ * @param {object} shape
+ * @returns {{selector: {type: string, x: number, y: number}, source: string}}
+ */
+const getIIIFTargetAsPointSelector = (canvasId, shape) => ({
+  selector: {
+    type: 'PointSelector',
+    x: shape.x,
+    y: shape.y,
+  },
+  source: canvasId,
+});
+
+/**
  * Get the IIIF target as a fragment selector with SVG
  * @param maeTarget
  * @param canvasId
  * @returns {{selector: [{type: string, value},{type: string, value: string}], source}}
  */
-const getIIIFTargetAsFragmentSVGSelector = (maeTarget, canvasId) => {
+export const getIIIFTargetAsFragmentSVGSelector = (maeTarget, canvasId) => {
   const fragmentTarget = `${maeTarget.tend ? `t=${maeTarget.tstart},${maeTarget.tend}` : ''}`;
   return {
     selector: [
@@ -141,11 +160,14 @@ export const getIIIFTargetFromMaeData = (
   switch (templateType) {
     case TEMPLATE.IIIF_TYPE:
       return maeTarget;
+    case TEMPLATE.POI_TYPE:
+    case TEMPLATE.NESTED_MAP_TYPE:
+      // A POI/NestedMap target is always exactly one placed marker (see isValidPointTarget), so
+      // it always saves as a PointSelector - never the rectangle/SVG paths below.
+      return getIIIFTargetAsPointSelector(canvasId, maeTarget.drawingState.shapes[0]);
     case TEMPLATE.TAGGING_TYPE:
     case TEMPLATE.TEXT_TYPE:
     case TEMPLATE.MULTIPLE_BODY_TYPE:
-    case TEMPLATE.POI_TYPE:
-    case TEMPLATE.NESTED_MAP_TYPE:
       // In some case the target can be simplified in a string
       if (isSimpleTarget(maeTarget.drawingState.shapes)) {
         console.info('Simple target detected');
@@ -314,6 +336,89 @@ const xywhToSvg = ({
   </svg>`;
 };
 
+/** Scales each Catmull-Rom tangent beyond the canonical 1/6-chord length (tension 1): rounds
+ * off the bend at each poi more generously, at the cost of a wider, more sweeping curve on
+ * either side of it. 1.5 was chosen by eye against the demo map - noticeably smoother than the
+ * canonical curve without yet overshooting into a visible loop at sharp turns. */
+const CURVE_TENSION = 1.5;
+
+/**
+ * Builds a smooth cubic-bezier `d` path through every point, in order, via a Catmull-Rom
+ * spline: unlike a quadratic/simplified curve, this passes through each point exactly (not
+ * just near it), which matters here since each point is a POI's own marker center - the curve
+ * must still touch every marker, only the line between them should bend smoothly instead of
+ * breaking. Segment i's control points are derived from its neighbors on each side, clamped to
+ * the curve's own endpoint when there is no such neighbor (a poi has no "before the first" or
+ * "after the last" leg to smooth against, so the endpoint just repeats itself there).
+ * @param {{x: number, y: number}[]} points
+ * @returns {string}
+ */
+const catmullRomToBezierPath = (points) => {
+  const [first] = points;
+  if (points.length === 2) {
+    const [, second] = points;
+    return `M ${first.x},${first.y} L ${second.x},${second.y}`;
+  }
+
+  const segments = points.slice(0, -1).map((p1, i) => {
+    const p0 = points[i - 1] ?? p1;
+    const p2 = points[i + 1];
+    const p3 = points[i + 2] ?? p2;
+    // Catmull-Rom -> cubic Bezier control point conversion (tangent = CURVE_TENSION/6 of the
+    // chord between the point before and the point after; CURVE_TENSION=1 is the canonical
+    // conversion).
+    const cp1x = p1.x + ((p2.x - p0.x) * CURVE_TENSION) / 6;
+    const cp1y = p1.y + ((p2.y - p0.y) * CURVE_TENSION) / 6;
+    const cp2x = p2.x - ((p3.x - p1.x) * CURVE_TENSION) / 6;
+    const cp2y = p2.y - ((p3.y - p1.y) * CURVE_TENSION) / 6;
+    return `C ${cp1x},${cp1y} ${cp2x},${cp2y} ${p2.x},${p2.y}`;
+  });
+
+  return `M ${first.x},${first.y} ${segments.join(' ')}`;
+};
+
+/** Dash/gap lengths (in canvas pixels) for a journey's path, distinguishing it at a glance from
+ * a tagging/text/etc. target's own solid TARGET_TOOL_STATE-colored outline. */
+const JOURNEY_PATH_DASH_ARRAY = '15,10';
+
+/**
+ * Build a smooth open curve SVG string through an ordered list of points (issue #358):
+ * synthesizes a journey's path directly from its POIs' already-saved center points, without a
+ * live Konva stage (journeys mount no Konva stage at all - see JourneyTemplate.jsx). Modeled on
+ * xywhToSvg's `<svg>` wrapper conventions, but with no fill (an open line, not a filled shape)
+ * and a smooth multi-point `d` path (see catmullRomToBezierPath) instead of a single rectangle.
+ * @param {{ points: {x: number, y: number}[], fullW: number|string, fullH: number|string }}
+ * @returns {string}
+ */
+export const smoothCurveToSvg = ({ points, fullW: rawFullW, fullH: rawFullH }) => {
+  const fullW = parseFloat(rawFullW);
+  const fullH = parseFloat(rawFullH);
+  if (!Number.isFinite(fullW) || !Number.isFinite(fullH)) {
+    throw new Error(`smoothCurveToSvg: fullW,fullH must be floats (got fullW=${fullW}, fullH=${fullH})`);
+  }
+
+  const pathData = catmullRomToBezierPath(points);
+
+  return `<svg
+      version='1.1'
+      xmlns='http://www.w3.org/2000/svg'
+      xmlns:xlink='http://www.w3.org/1999/xlink'
+      width='${fullW}' height='${fullH}'
+  >
+    <defs/>
+    <g><g>
+      <path
+        d='${pathData}'
+        fill='none'
+        stroke='${POI_MARKER_STYLE.fill}'
+        stroke-width='${TARGET_TOOL_STATE.strokeWidth}'
+        stroke-miterlimit='10'
+        stroke-dasharray='${JOURNEY_PATH_DASH_ARRAY}'
+      />
+    </g></g>
+  </svg>`;
+};
+
 const convertFragmentSelectorToMae = (selector) => {
   // NOTE: parseFloat is VERY important. without it, when modifying annotation, it will be displayed VERY weirdly.
   const [x, y, w, h] = selector.value.replace('xywh=', '').split(',').map(parseFloat);
@@ -402,6 +507,38 @@ const convertPoiSvgSelectorToMae = (svgDoc, svgValue) => {
 };
 
 /**
+ * Reconstructs a POI/NestedMap point's `maeData.target` from a real IIIF PointSelector
+ * (the format written by getIIIFTargetAsPointSelector going forward). Unlike the legacy
+ * convertPoiSvgSelectorToMae below, there is no traced marker to measure, so the radius can't be
+ * recovered - it falls back to getPoiMarkerRadius's own no-media-dimensions default. This is
+ * harmless: the radius only affects this editor's own Konva marker size, not the point's saved
+ * position, and a renderer (e.g. map-mirador) draws its own icon independently of it.
+ * @param {{ type: string, x: number, y: number }} selector
+ * @returns {object} maeTarget
+ */
+const convertPointSelectorToMae = (selector) => {
+  const currentShape = {
+    ...POI_MARKER_STYLE,
+    id: uuidv4(),
+    radius: getPoiMarkerRadius(),
+    rotation: 0,
+    scaleX: 1,
+    scaleY: 1,
+    type: SHAPES_TOOL.POI,
+    x: selector.x,
+    y: selector.y,
+  };
+
+  return {
+    drawingState: JSON.stringify({
+      currentShape,
+      isDrawing: false,
+      shapes: [currentShape],
+    }),
+  };
+};
+
+/**
  * @param {{ type: string, value: string }} selector
  * @param {string} [templateType] - when POI_TYPE/NESTED_MAP_TYPE, reconstructs a POI marker
  *   (see convertPoiSvgSelectorToMae) instead of the generic rectangle bounding box below - those
@@ -454,9 +591,10 @@ const convertSvgSelectorToMae = (selector, templateType) => {
  * generate `maeData.target` from an annotation's `target` field.
  *
  * NOTE: limitations:
- * - currently, only 2 types of targets are supported:
+ * - currently, only 3 types of targets are supported:
  *    - FragmentSelectors
  *    - SvgSelectors
+ *    - PointSelectors (POI/NestedMap only; see convertPointSelectorToMae)
  * - if there is an array of selectors, the first supported selector is used
  * - we extract bounding boxes from SVGs, so we expect SVGs to be rectangular
  *
@@ -466,7 +604,7 @@ const convertSvgSelectorToMae = (selector, templateType) => {
  * @returns {object}
  */
 const convertIIIFTargetToMae = (target, annotationId, templateType) => {
-  const supportedSelectorTypes = ['SvgSelector', 'FragmentSelector'];
+  const supportedSelectorTypes = ['SvgSelector', 'FragmentSelector', 'PointSelector'];
   const selectorArray = Array.isArray(target.selector) ? target.selector : [target.selector];
 
   for (const selector of selectorArray) {
@@ -477,6 +615,8 @@ const convertIIIFTargetToMae = (target, annotationId, templateType) => {
         return convertSvgSelectorToMae(selector, templateType);
       } if (selector.type === 'FragmentSelector') {
         return convertFragmentSelectorToMae(selector);
+      } if (selector.type === 'PointSelector') {
+        return convertPointSelectorToMae(selector);
       }
     } catch (err) {
       console.error(`Error generating maeData from selector ${selector.type}, attempting to fallback to other selector`, err);
@@ -762,6 +902,12 @@ function createV2AnnoSelector(v3selector) {
         '@type': 'oa:FragmentSelector',
         value: v3selector.value,
       };
+    case 'PointSelector':
+      return {
+        '@type': 'oa:PointSelector',
+        x: v3selector.x,
+        y: v3selector.y,
+      };
     default:
       return null;
   }
@@ -868,6 +1014,12 @@ function createV3AnnoSelector(v2selector) {
       return {
         type: 'FragmentSelector',
         value: v2selector.value,
+      };
+    case 'oa:PointSelector':
+      return {
+        type: 'PointSelector',
+        x: v2selector.x,
+        y: v2selector.y,
       };
     case 'oa:Choice':
       /* create alternate selectors */

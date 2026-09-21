@@ -29,20 +29,23 @@ const getLocaleContent = (contentByLocale, locale) => (
 );
 
 /**
- * Convert a JourneyTemplate annotationState into a savable IIIF annotation: build the body
+ * Convert a JourneyTemplate annotationState into a savable IIIF annotation: just build the body
  * array (applyPoiBodyConversion - a journey has the exact same localized title/description/
- * media shape as a poi), then set `target` to the whole canvas. A journey has no spatial
- * marker (root_repo's design doc explicitly scoped that out - see docs/superpowers/specs/
+ * media shape as a poi). A journey has no spatial marker of its own (root_repo's design doc
+ * explicitly scoped that out - see docs/superpowers/specs/
  * 2026-09-01-poi-iiif-annotation-format-design.md), so unlike every other template here this
  * does NOT go through finalizeSpatialTarget/getIIIFTargetFromMaeData at all - there is no
- * Konva-drawn shape to finalize.
+ * Konva-drawn shape to finalize. `target` is left as whatever the annotation state already
+ * carries (`null` for a brand-new journey, or its existing computed path otherwise) rather than
+ * being forced to `canvas.id`: the Strapi `target` column is JSON, and a bare canvas-id string
+ * isn't valid JSON syntax, so writing it here made every journey creation fail with a Postgres
+ * "invalid input syntax for type json" error. The real path is only ever computed by the
+ * "refresh path" feature (journeyPath.js's recomputeJourneyPath), never by this save path.
  * @param {object} state
- * @param {{ canvas: object, windowId: string, playerReferences: object }} ctx
  * @returns {Promise<object>}
  */
-export const convertJourneyAnnotationToBeSaved = async (state, { canvas }) => {
+export const convertJourneyAnnotationToBeSaved = async (state) => {
   const stateToSave = applyPoiBodyConversion(state);
-  stateToSave.target = canvas.id;
   return stateToSave;
 };
 
