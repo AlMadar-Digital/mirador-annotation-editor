@@ -123,3 +123,24 @@ export const recomputeJourneyPath = (journeyId, items, canvasId) => {
     target: getIIIFTargetAsFragmentSVGSelector({ svg }, resolvedCanvasId),
   };
 };
+
+/** The SVG path value of a journey target, or null when it has no path. */
+const journeyPathSvg = (target) => [].concat(target?.selector ?? [])
+  .find((selector) => selector?.type === 'SvgSelector')?.value ?? null;
+
+/**
+ * Whether two journey targets draw the same path - what decides if a recomputed path is worth
+ * saving. Compares what the path is rather than how it's serialized: the server hands targets
+ * back with their keys reordered (Postgres jsonb), and stores "no path" in several forms (the
+ * plain canvas id recomputeJourneyPath sets, `null`, or a placeholder FragmentSelector), which
+ * are all the same "no path" here. A path is only the same when drawn on the same canvas too.
+ * @param {object|string|null} a
+ * @param {object|string|null} b
+ * @returns {boolean}
+ */
+export const isSameJourneyPath = (a, b) => {
+  const pathA = journeyPathSvg(a);
+  const pathB = journeyPathSvg(b);
+  if (pathA === null || pathB === null) return pathA === pathB;
+  return pathA === pathB && a.source === b.source;
+};

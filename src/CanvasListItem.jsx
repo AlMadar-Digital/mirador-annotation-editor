@@ -22,7 +22,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import AnnotationActionsContext from './AnnotationActionsContext';
 import WhoAndWhenFormSection, { TOOLTIP_MODE } from './annotationForm/WhoAndWhenFormSection';
 import HotkeyTooltip from "./hotkeys/HotkeyTooltip";
-import { recomputeJourneyPath } from './journeyPath';
+import { isSameJourneyPath, recomputeJourneyPath } from './journeyPath';
 
 // TODO missing TRAD
 const CanvasListItem = forwardRef((props, ref) => {
@@ -89,6 +89,10 @@ const CanvasListItem = forwardRef((props, ref) => {
           if (!journeyId || !annoPage?.items) return;
           const updatedJourney = recomputeJourneyPath(journeyId, annoPage.items, canvas.id);
           if (!updatedJourney) return;
+          const currentJourney = annoPage.items.find((item) => item.id === journeyId);
+          if (currentJourney && isSameJourneyPath(currentJourney.target, updatedJourney.target)) {
+            return;
+          }
           adapter.update(updatedJourney).then((updatedAnnoPage) => {
             receiveAnnotation(canvas.id, adapter.annotationPageId, updatedAnnoPage);
           });
