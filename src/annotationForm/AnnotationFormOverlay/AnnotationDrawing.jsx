@@ -674,6 +674,22 @@ export default function AnnotationDrawing(
     setIsResizing(false);
   };
 
+  /**
+   * Zooms the viewer under the drawing layer on mouse wheel, as if the layer wasn't there: the
+   * layer covers the image, so the viewer would otherwise never see a wheel event while a POI
+   * is being placed. Re-dispatching the event to the viewer's own canvas keeps its native zoom
+   * (zoom step, constraints) without reimplementing it.
+   * @param {Object} e - Konva's wheel event, wrapping the DOM one
+   */
+  const handleWheel = (e) => {
+    const viewerCanvas = playerReferences.media?.current?.canvas;
+    if (!viewerCanvas) return;
+    e.evt.preventDefault();
+    viewerCanvas.dispatchEvent(new WheelEvent(e.evt.type, e.evt));
+  };
+
+  const isPanning = toolState.activeTool === OVERLAY_TOOL.PAN;
+
   /** */
   const drawKonvas = () => (
     <Stage
@@ -686,12 +702,16 @@ export default function AnnotationDrawing(
         objectFit: 'contain',
         overflow: 'clip',
         overflowClipMargin: 'content-box',
+        // In PAN, the pointer goes through to the viewer: shapes stay visible but can't be
+        // clicked or dragged, while the map pans and zooms natively.
+        pointerEvents: isPanning ? 'none' : undefined,
         position: 'absolute',
         top: playerReferences.getImagePosition().y,
       }}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
       onMouseMove={handleMouseMove}
+      onWheel={displayMode === KONVA_MODE.POI ? handleWheel : undefined}
       id={windowId}
     >
       <ParentComponent

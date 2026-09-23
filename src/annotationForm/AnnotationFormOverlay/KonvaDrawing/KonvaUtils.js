@@ -206,6 +206,8 @@ export const OVERLAY_TOOL = {
   DELETE: 'delete',
   EDIT: 'edit',
   IMAGE: 'image',
+  // Hands the pointer to the viewer: the drawing layer ignores it, so the map pans and zooms
+  PAN: 'pan',
   SHAPE: 'shapes',
   TEXT: 'text',
 };
