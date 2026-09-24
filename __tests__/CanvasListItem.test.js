@@ -218,33 +218,33 @@ describe('CanvasListItem', () => {
     ...extra
   });
 
-  it('opens the linked manifest from dbf:linkedMap.manifestId in a new window when the host has no openLinkedMap (issue #427)', async () => {
-    const addWindow = vi.fn();
+  it('opens the linked manifest from dbf:linkedMap.manifestId in place of the current map when the host has no openLinkedMap (issue #427)', async () => {
+    const openNestedMap = vi.fn();
     const manifestId = 'https://cms.example.org/api/maps/maps/map/2/manifest';
 
     createWrapper({}, nestedMapContext(
       { id: 'map/2', manifestId, titleEn: 'Nested map' },
-      { addWindow, config: { annotation: {} } }
+      { config: { annotation: {} }, openNestedMap }
     ));
 
     await userEvent.hover(screen.getByText('HelloWorld').closest('li'));
     await userEvent.click(screen.getByRole('button', { name: /open nested map/i }));
 
-    expect(addWindow).toHaveBeenCalledWith({ manifestId });
+    expect(openNestedMap).toHaveBeenCalledWith(manifestId);
   });
 
   it('prefers the host openLinkedMap over dbf:linkedMap.manifestId (issue #427)', async () => {
-    const addWindow = vi.fn();
     const openLinkedMap = vi.fn();
+    const openNestedMap = vi.fn();
     const linkedMap = { id: 'map/2', manifestId: 'https://cms.example.org/api/maps/maps/map/2/manifest' };
 
-    createWrapper({}, nestedMapContext(linkedMap, { addWindow, config: { annotation: { openLinkedMap } } }));
+    createWrapper({}, nestedMapContext(linkedMap, { config: { annotation: { openLinkedMap } }, openNestedMap }));
 
     await userEvent.hover(screen.getByText('HelloWorld').closest('li'));
     await userEvent.click(screen.getByRole('button', { name: /open nested map/i }));
 
     expect(openLinkedMap).toHaveBeenCalledWith(linkedMap);
-    expect(addWindow).not.toHaveBeenCalled();
+    expect(openNestedMap).not.toHaveBeenCalled();
   });
 
   it('hides "open nested map" when neither a manifestId nor a host openLinkedMap can open it (issue #427)', async () => {

@@ -1,4 +1,4 @@
-import Mirador from 'dbf-mirador';
+import Mirador, { nestedMapPlugins } from 'dbf-mirador';
 import annotationPlugins from '../../src';
 import LocalStorageAdapter from '../../src/annotationAdapter/LocalStorageAdapter';
 
@@ -77,4 +77,5 @@ const config = {
   ],
 };
 
-Mirador.viewer(config, [...annotationPlugins]);
+// dbf-mirador's Back button, for a nested map opened in place from its "Open map" row button.
+Mirador.viewer(config, [...annotationPlugins, ...nestedMapPlugins]);

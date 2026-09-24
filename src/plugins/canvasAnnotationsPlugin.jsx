@@ -3,12 +3,12 @@ import PropTypes from 'prop-types';
 import {
   addCompanionWindow,
   addCompanionWindow as addCompanionWindowAction,
-  addWindow as addWindowAction,
   deselectAnnotation as deselectAnnotationAction,
   getCompanionWindowsForContent,
   getVisibleCanvases,
   getWindow,
   getWindowViewType,
+  openNestedMap as openNestedMapAction,
   receiveAnnotation as receiveAnnotationAction,
   setWindowViewType as setWindowViewTypeAction,
   updateWindow as updateWindowAction,
@@ -41,12 +41,12 @@ import { useContextParams } from '../contextParams';
  */
 function CanvasAnnotationsWrapper({
   addCompanionWindow,
-  addWindow,
   annotationsOnCanvases = {},
   canvases = [],
   config,
   deselectAnnotation,
   highlightAllAnnotations,
+  openNestedMap,
   receiveAnnotation,
   switchToSingleCanvasView,
   TargetComponent,
@@ -185,12 +185,12 @@ function CanvasAnnotationsWrapper({
 
   const contextValue = useMemo(() => ({
     addCompanionWindow,
-    addWindow,
     annotationEditCompanionWindowIsOpened,
     annotationPreviewCompanionWindowIsOpened,
     annotationsOnCanvases,
     canvases,
     config,
+    openNestedMap,
     receiveAnnotation,
     storageAdapter: config.annotation.adapter,
     t,
@@ -199,12 +199,12 @@ function CanvasAnnotationsWrapper({
     windowViewType,
   }), [
     addCompanionWindow,
-    addWindow,
     annotationEditCompanionWindowIsOpened,
     annotationPreviewCompanionWindowIsOpened,
     annotationsOnCanvases,
     canvases,
     config,
+    openNestedMap,
     receiveAnnotation,
     t,
     toggleSingleCanvasDialogOpen,
@@ -249,7 +249,6 @@ function CanvasAnnotationsWrapper({
 
 CanvasAnnotationsWrapper.propTypes = {
   addCompanionWindow: PropTypes.func.isRequired,
-  addWindow: PropTypes.func.isRequired,
   annotationEditCompanionWindowIsOpened: PropTypes.bool.isRequired,
   annotationPreviewCompanionWindowIsOpened: PropTypes.bool.isRequired,
   annotationsOnCanvases: PropTypes.shape({
@@ -292,6 +291,7 @@ CanvasAnnotationsWrapper.propTypes = {
   }).isRequired,
   deselectAnnotation: PropTypes.func.isRequired,
   highlightAllAnnotations: PropTypes.bool.isRequired,
+  openNestedMap: PropTypes.func.isRequired,
   receiveAnnotation: PropTypes.func.isRequired,
   switchToSingleCanvasView: PropTypes.func.isRequired,
   t: PropTypes.func.isRequired,
@@ -344,7 +344,8 @@ function mapStateToProps(state, { targetProps: { windowId } }) {
  *
  * - `addCompanionWindow`: Open a companion window for the given window ID,
  *   with specified content and optional extra props.
- * - `addWindow`: Open a new Mirador window (e.g. on a Nested Map point's linked manifest).
+ * - `openNestedMap`: Show a Nested Map point's linked map in place of the window's current
+ *   map, with dbf-mirador's Back button (its `nestedMapPlugins`) leading back to it.
  * - `receiveAnnotation`: Add or update an annotation in the Redux store
  *   for a specific target.
  * - `switchToSingleCanvasView`: Change the current window's view type
@@ -357,7 +358,7 @@ function mapStateToProps(state, { targetProps: { windowId } }) {
  * @param {string} props.targetProps.windowId - The ID of the Mirador window.
  * @returns {object} An object mapping action dispatchers to props.
  * @property {function(string, object):void} addCompanionWindow
- * @property {function(object):void} addWindow
+ * @property {function(string):void} openNestedMap
  * @property {function(string, string, object):void} receiveAnnotation
  * @property {function():void} switchToSingleCanvasView
  */
@@ -366,9 +367,11 @@ const mapDispatchToProps = (dispatch, props) => ({
     props.targetProps.windowId,
     { content, ...additionalProps },
   )),
-  addWindow: (windowConfig) => dispatch(addWindowAction(windowConfig)),
   deselectAnnotation: () => dispatch(
     deselectAnnotationAction(props.targetProps.windowId),
+  ),
+  openNestedMap: (manifestId) => dispatch(
+    openNestedMapAction(props.targetProps.windowId, manifestId),
   ),
   receiveAnnotation: (targetId, id, annotation) => dispatch(
     receiveAnnotationAction(targetId, id, annotation),

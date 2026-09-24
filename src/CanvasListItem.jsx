@@ -173,11 +173,11 @@ const CanvasListItem = forwardRef((props, ref) => {
   // annotation itself carries (`dbf:linkedMap.manifestId`, issue #427).
   const canOpenNestedMap = !!linkedMap && (!!openLinkedMap || !!linkedMap.manifestId);
   /**
-   * Opens the map linked to a Nested Map point (issue #350/#407) in a brand new Mirador
-   * window, instead of previewing it in a companion window like a plain POI/Journey does.
-   * The window is opened on `dbf:linkedMap.manifestId` (issue #427), unless the host app
-   * takes over through `config.annotation.openLinkedMap` - e.g. to scope the new window's
-   * annotation adapter to the linked map.
+   * Opens the map linked to a Nested Map point (issue #350/#407) instead of previewing it in a
+   * companion window like a plain POI/Journey does: its `dbf:linkedMap.manifestId` (issue #427)
+   * replaces the window's current map, and dbf-mirador's Back button (its `nestedMapPlugins`,
+   * which the host registers alongside this package's plugins) returns to it. The host app can
+   * take over through `config.annotation.openLinkedMap`.
    * @function handleOpenNestedMap
    * @returns {void}
    */
@@ -185,7 +185,7 @@ const CanvasListItem = forwardRef((props, ref) => {
     if (openLinkedMap) {
       openLinkedMap(linkedMap);
     } else {
-      context.addWindow({ manifestId: linkedMap.manifestId });
+      context.openNestedMap(linkedMap.manifestId);
     }
   };
     /**
