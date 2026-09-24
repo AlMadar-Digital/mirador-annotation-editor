@@ -167,17 +167,26 @@ const CanvasListItem = forwardRef((props, ref) => {
       position: 'right',
     });
   };
+  const linkedMap = annotationData?.['dbf:linkedMap'];
+  const openLinkedMap = context.config?.annotation?.openLinkedMap;
+  // Without a host hook, the linked map can only be opened through the manifest URL the
+  // annotation itself carries (`dbf:linkedMap.manifestId`, issue #427).
+  const canOpenNestedMap = !!linkedMap && (!!openLinkedMap || !!linkedMap.manifestId);
   /**
    * Opens the map linked to a Nested Map point (issue #350/#407) in a brand new Mirador
    * window, instead of previewing it in a companion window like a plain POI/Journey does.
-   * Delegates the actual "how" (building the manifest URL, dispatching addWindow) to the
-   * host app via `config.annotation.openLinkedMap`, the same way searchMaps/searchMediaItems
-   * etc. are host-supplied - this package has no notion of Strapi's manifest endpoint.
+   * The window is opened on `dbf:linkedMap.manifestId` (issue #427), unless the host app
+   * takes over through `config.annotation.openLinkedMap` - e.g. to scope the new window's
+   * annotation adapter to the linked map.
    * @function handleOpenNestedMap
    * @returns {void}
    */
   const handleOpenNestedMap = () => {
-    context.config?.annotation?.openLinkedMap?.(annotationData?.['dbf:linkedMap']);
+    if (openLinkedMap) {
+      openLinkedMap(linkedMap);
+    } else {
+      context.addWindow({ manifestId: linkedMap.manifestId });
+    }
   };
     /**
      * Checks if a given annotation ID is editable.
@@ -281,7 +290,7 @@ const CanvasListItem = forwardRef((props, ref) => {
             </Tooltip>
             )}
 
-            {!!annotationData?.['dbf:linkedMap'] && (
+            {canOpenNestedMap && (
             <Tooltip title={t('openNestedMap')}>
               <span>
                 <ToggleButton

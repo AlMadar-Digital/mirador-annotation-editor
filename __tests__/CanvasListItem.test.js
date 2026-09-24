@@ -196,6 +196,65 @@ describe('CanvasListItem', () => {
       .toHaveBeenCalledWith(linkedMap);
   });
 
+  const nestedMapContext = (linkedMap, extra = {}) => ({
+    annotationPreviewCompanionWindowIsOpened: true,
+    annotationsOnCanvases: {
+      'canv/1': {
+        'annoPage/1': {
+          json: {
+            items: [
+              {
+                'dbf:kind': 'POI',
+                'dbf:linkedMap': linkedMap,
+                id: 'anno/1',
+                maeData: { someData: 'someValue' }
+              }
+            ]
+          }
+        }
+      }
+    },
+    canvases: [{ id: 'canv/1' }],
+    ...extra
+  });
+
+  it('opens the linked manifest from dbf:linkedMap.manifestId in a new window when the host has no openLinkedMap (issue #427)', async () => {
+    const addWindow = vi.fn();
+    const manifestId = 'https://cms.example.org/api/maps/maps/map/2/manifest';
+
+    createWrapper({}, nestedMapContext(
+      { id: 'map/2', manifestId, titleEn: 'Nested map' },
+      { addWindow, config: { annotation: {} } }
+    ));
+
+    await userEvent.hover(screen.getByText('HelloWorld').closest('li'));
+    await userEvent.click(screen.getByRole('button', { name: /open nested map/i }));
+
+    expect(addWindow).toHaveBeenCalledWith({ manifestId });
+  });
+
+  it('prefers the host openLinkedMap over dbf:linkedMap.manifestId (issue #427)', async () => {
+    const addWindow = vi.fn();
+    const openLinkedMap = vi.fn();
+    const linkedMap = { id: 'map/2', manifestId: 'https://cms.example.org/api/maps/maps/map/2/manifest' };
+
+    createWrapper({}, nestedMapContext(linkedMap, { addWindow, config: { annotation: { openLinkedMap } } }));
+
+    await userEvent.hover(screen.getByText('HelloWorld').closest('li'));
+    await userEvent.click(screen.getByRole('button', { name: /open nested map/i }));
+
+    expect(openLinkedMap).toHaveBeenCalledWith(linkedMap);
+    expect(addWindow).not.toHaveBeenCalled();
+  });
+
+  it('hides "open nested map" when neither a manifestId nor a host openLinkedMap can open it (issue #427)', async () => {
+    createWrapper({}, nestedMapContext({ id: 'map/2' }, { config: { annotation: {} } }));
+
+    await userEvent.hover(screen.getByText('HelloWorld').closest('li'));
+
+    expect(screen.queryByRole('button', { name: /open nested map/i })).toBeNull();
+  });
+
   it('disables preview while a preview companion window is already open', async () => {
     createWrapper({}, {
       annotationPreviewCompanionWindowIsOpened: false,

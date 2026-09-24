@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import {
   addCompanionWindow,
   addCompanionWindow as addCompanionWindowAction,
+  addWindow as addWindowAction,
   deselectAnnotation as deselectAnnotationAction,
   getCompanionWindowsForContent,
   getVisibleCanvases,
@@ -40,6 +41,7 @@ import { useContextParams } from '../contextParams';
  */
 function CanvasAnnotationsWrapper({
   addCompanionWindow,
+  addWindow,
   annotationsOnCanvases = {},
   canvases = [],
   config,
@@ -183,6 +185,7 @@ function CanvasAnnotationsWrapper({
 
   const contextValue = useMemo(() => ({
     addCompanionWindow,
+    addWindow,
     annotationEditCompanionWindowIsOpened,
     annotationPreviewCompanionWindowIsOpened,
     annotationsOnCanvases,
@@ -196,6 +199,7 @@ function CanvasAnnotationsWrapper({
     windowViewType,
   }), [
     addCompanionWindow,
+    addWindow,
     annotationEditCompanionWindowIsOpened,
     annotationPreviewCompanionWindowIsOpened,
     annotationsOnCanvases,
@@ -245,6 +249,7 @@ function CanvasAnnotationsWrapper({
 
 CanvasAnnotationsWrapper.propTypes = {
   addCompanionWindow: PropTypes.func.isRequired,
+  addWindow: PropTypes.func.isRequired,
   annotationEditCompanionWindowIsOpened: PropTypes.bool.isRequired,
   annotationPreviewCompanionWindowIsOpened: PropTypes.bool.isRequired,
   annotationsOnCanvases: PropTypes.shape({
@@ -339,6 +344,7 @@ function mapStateToProps(state, { targetProps: { windowId } }) {
  *
  * - `addCompanionWindow`: Open a companion window for the given window ID,
  *   with specified content and optional extra props.
+ * - `addWindow`: Open a new Mirador window (e.g. on a Nested Map point's linked manifest).
  * - `receiveAnnotation`: Add or update an annotation in the Redux store
  *   for a specific target.
  * - `switchToSingleCanvasView`: Change the current window's view type
@@ -351,6 +357,7 @@ function mapStateToProps(state, { targetProps: { windowId } }) {
  * @param {string} props.targetProps.windowId - The ID of the Mirador window.
  * @returns {object} An object mapping action dispatchers to props.
  * @property {function(string, object):void} addCompanionWindow
+ * @property {function(object):void} addWindow
  * @property {function(string, string, object):void} receiveAnnotation
  * @property {function():void} switchToSingleCanvasView
  */
@@ -359,6 +366,7 @@ const mapDispatchToProps = (dispatch, props) => ({
     props.targetProps.windowId,
     { content, ...additionalProps },
   )),
+  addWindow: (windowConfig) => dispatch(addWindowAction(windowConfig)),
   deselectAnnotation: () => dispatch(
     deselectAnnotationAction(props.targetProps.windowId),
   ),
