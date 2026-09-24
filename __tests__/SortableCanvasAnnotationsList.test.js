@@ -148,6 +148,80 @@ describe('SortableCanvasAnnotationsList', () => {
   });
 });
 
+describe('saving only what a move changes (AlMadar-Digital/platform#427)', () => {
+  /** An adapter whose writes resolve right away with an empty page. */
+  const immediateAdapter = () => ({
+    annotationPageId: 'page/1',
+    update: vi.fn(async () => ({ items: [] })),
+  });
+
+  it('saves nothing when react-sortablejs reports the list unchanged (mount, mousedown, mouseup)', async () => {
+    const poiA = poi('poi/a', 0);
+    const poiB = poi('poi/b', 1);
+    const adapter = immediateAdapter();
+
+    render(withContext({
+      items: [poiA, poiB],
+      receiveAnnotation: vi.fn(),
+      storageAdapter: () => adapter,
+    }));
+
+    await act(async () => {
+      const { setList } = latestSortableProps();
+      // what its choose/unchoose events send: the same items, only flagged
+      setList([{ ...poiA, chosen: true, selected: false }, { ...poiB, chosen: false }]);
+      setList([{ ...poiA, chosen: false, selected: false }, { ...poiB, chosen: false }]);
+    });
+
+    expect(adapter.update).not.toHaveBeenCalled();
+  });
+
+  it('saves only the items whose position changed, without react-sortablejs\'s drag flags', async () => {
+    const poiA = poi('poi/a', 0);
+    const poiB = poi('poi/b', 1);
+    const poiC = poi('poi/c', 2);
+    const adapter = immediateAdapter();
+
+    render(withContext({
+      items: [poiA, poiB, poiC],
+      receiveAnnotation: vi.fn(),
+      storageAdapter: () => adapter,
+    }));
+
+    // C dragged in front of B: A keeps its place
+    await act(async () => {
+      latestSortableProps().setList([
+        { ...poiA, chosen: false, selected: false },
+        { ...poiC, chosen: true, selected: false },
+        { ...poiB, chosen: false, selected: false },
+      ]);
+    });
+
+    await waitFor(() => expect(adapter.update).toHaveBeenCalledTimes(2));
+    const written = adapter.update.mock.calls.map(([annotation]) => annotation);
+    expect(written.map((annotation) => [annotation.id, annotation['dbf:order']]))
+      .toEqual([['poi/c', 1], ['poi/b', 2]]);
+    written.forEach((annotation) => {
+      expect(annotation).not.toHaveProperty('chosen');
+      expect(annotation).not.toHaveProperty('selected');
+    });
+  });
+
+  it('leaves the items it was given untouched', async () => {
+    const poiA = poi('poi/a', 0);
+    const poiB = poi('poi/b', 1);
+
+    render(withContext({
+      items: [poiA, poiB],
+      receiveAnnotation: vi.fn(),
+      storageAdapter: () => immediateAdapter(),
+    }));
+
+    expect(latestSortableProps().list[0]).not.toBe(poiA);
+    expect(latestSortableProps().list[0]).toEqual(poiA);
+  });
+});
+
 describe('journey path auto-recompute (issue #358)', () => {
   /** A raw journey annotation item, with no synthesized path yet (plain canvas-id target). */
   const journeyItem = (id, order = 0) => ({

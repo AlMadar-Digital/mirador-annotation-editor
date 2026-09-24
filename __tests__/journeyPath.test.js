@@ -1,4 +1,4 @@
-import { recomputeJourneyPath } from '../src/journeyPath';
+import { isSameJourneyPath, recomputeJourneyPath } from '../src/journeyPath';
 
 /** Builds a minimal raw journey annotation item for these tests. */
 const journey = (id, overrides = {}) => ({
@@ -239,5 +239,40 @@ describe('recomputeJourneyPath', () => {
     const updated = recomputeJourneyPath('journey-1', items);
 
     expect(updated.target.selector[0].value).toContain("width='800' height='600'");
+  });
+});
+
+describe('isSameJourneyPath', () => {
+  /** A journey target drawing the SVG path `value` on `source` */
+  const path = (value, source = 'canv/1') => ({
+    selector: [
+      { type: 'FragmentSelector', value: 'xywh=0,0,10,10' },
+      { type: 'SvgSelector', value },
+    ],
+    source,
+  });
+
+  it('matches the same path whatever the order of its keys (as Postgres jsonb returns them)', () => {
+    // eslint-disable-next-line sort-keys -- the reordered keys are the point
+    const saved = { source: 'canv/1', selector: path('<svg>a</svg>').selector.reverse() };
+
+    expect(isSameJourneyPath(saved, path('<svg>a</svg>'))).toBe(true);
+  });
+
+  it('treats every stored form of "no path" as the same', () => {
+    const placeholder = {
+      selector: { type: 'FragmentSelector', value: 'xywh=0,0,0,0' },
+      source: 'maps://annotations/journey-1/canvas',
+    };
+
+    expect(isSameJourneyPath('canv/1', null)).toBe(true);
+    expect(isSameJourneyPath(placeholder, 'canv/1')).toBe(true);
+    expect(isSameJourneyPath(undefined, placeholder)).toBe(true);
+  });
+
+  it('tells a different path, a path on another canvas, or a path appearing apart', () => {
+    expect(isSameJourneyPath(path('<svg>a</svg>'), path('<svg>b</svg>'))).toBe(false);
+    expect(isSameJourneyPath(path('<svg>a</svg>', 'maps://placeholder'), path('<svg>a</svg>'))).toBe(false);
+    expect(isSameJourneyPath('canv/1', path('<svg>a</svg>'))).toBe(false);
   });
 });

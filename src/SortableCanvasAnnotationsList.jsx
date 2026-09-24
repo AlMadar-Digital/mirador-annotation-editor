@@ -2,6 +2,7 @@ import React, {
   useCallback, useEffect, useMemo, useRef, useState,
 } from 'react';
 import PropTypes from 'prop-types';
+import isEqual from 'lodash/isEqual';
 import { ReactSortable } from 'react-sortablejs';
 import { useTranslation } from 'react-i18next';
 import Typography from '@mui/material/Typography';
@@ -9,7 +10,7 @@ import CanvasListItem from './CanvasListItem';
 import {
   annotationTitle, groupAnnotationItems, withJourneyOrder, withTopLevelOrder,
 } from './annotationListGrouping';
-import { recomputeJourneyPath } from './journeyPath';
+import { isSameJourneyPath, recomputeJourneyPath } from './journeyPath';
 import { TEMPLATE } from './annotationForm/AnnotationFormUtils';
 import { TEMPLATE_REGISTRY } from './annotationForm/templates/registry';
 import { MAE_POI_SAVING_EVENT } from './hotkeys/hotkeysEvents';
@@ -42,6 +43,31 @@ const templateTypeForItem = (item) => {
 // object at mount time (see componentDidMount/makeOptions in react-sortablejs - componentDidUpdate
 // only reacts to the `disabled` prop), so a fresh object identity each render buys nothing but
 // is worth avoiding for clarity.
+/** Drops the drag state react-sortablejs writes onto every list item (`chosen`/`selected`),
+ * which is neither annotation data to save nor a difference worth saving. */
+const withoutSortableState = (item) => {
+  if (!item) return item;
+  const { chosen, selected, ...annotation } = item;
+  return annotation;
+};
+
+/** What a sortable list holds: copies of the canonical items, since react-sortablejs writes its
+ * drag state straight onto the objects it's given - which would otherwise mutate redux's own. */
+const sortableCopies = (list) => list.map((item) => ({ ...item }));
+
+/** Whether a list react-sortablejs hands back shows the same items in the same order as `shown`.
+ * It calls `setList` for much more than moves - on mount, and on every mousedown/mouseup inside
+ * the list (its choose/unchoose events), just to flag the pressed row - and none of these
+ * change anything worth saving. */
+const isSameOrder = (list, shown) => list.length === shown.length
+  && list.every((item, position) => item.id === shown[position].id);
+
+/** The entries of a reordered list that differ from what's saved, i.e. the only ones to save:
+ * a move only changes the moved item's position and those of the items it passed. */
+const changedEntries = (entries, canonicalItemsById) => entries.filter(
+  (entry) => !isEqual(entry, withoutSortableState(canonicalItemsById.get(entry.id))),
+);
+
 const GROUP_NAME = 'maps-annotation-list';
 const TOP_LEVEL_GROUP = { name: GROUP_NAME, put: true };
 const JOURNEY_GROUP = {
@@ -56,7 +82,7 @@ const JOURNEY_GROUP = {
  * (redux-derived) poi list; `persist` is the shared, stateless save callback.
  */
 function JourneyPoiList({
-  journeyId, persist, pois, recomputeAndPersistJourney, renderRow,
+  canonicalItemsById, journeyId, persistChanges, pois, renderRow,
 }) {
   const isDraggingRef = useRef(false);
   // A drop fires one persist() per item in this list (see handleSetList below), each a
@@ -70,14 +96,14 @@ function JourneyPoiList({
   // that partial canonical state on every intermediate commit, visibly flickering/reverting
   // the list until the last item in the drop finally lands (issue #344 follow-up).
   const pendingWritesRef = useRef(0);
-  const [localPois, setLocalPois] = useState(pois);
+  const [localPois, setLocalPois] = useState(() => sortableCopies(pois));
 
   // Mirrors SortableCanvasAnnotationsList's own sync effect, scoped to this journey alone:
   // only this journey's own canonical pois resets this list, and only when this list itself
   // isn't mid-drag or mid-persist.
   useEffect(() => {
     if (isDraggingRef.current || pendingWritesRef.current > 0) return;
-    setLocalPois(pois);
+    setLocalPois(sortableCopies(pois));
   }, [pois]);
 
   const handleDragStart = useCallback(() => {
@@ -89,23 +115,20 @@ function JourneyPoiList({
   }, []);
 
   const handleSetList = useCallback((newList) => {
-    const updated = newList.map((poi, position) => withJourneyOrder(poi, journeyId, position));
+    if (isSameOrder(newList, localPois)) return;
+
+    const updated = newList.map(
+      (poi, position) => withJourneyOrder(withoutSortableState(poi), journeyId, position),
+    );
     setLocalPois(updated);
     pendingWritesRef.current += 1;
-    let lastAnnoPage;
-    updated.reduce(
-      (chain, entry) => chain.then(() => persist(entry).then((annoPage) => {
-        lastAnnoPage = annoPage;
-      })),
-      Promise.resolve(),
-    ).then(
-      // One recompute for the whole batch (issue #358), not per persisted item - membership
-      // and/or order of this journey changed regardless of which poi moved.
-      () => (lastAnnoPage ? recomputeAndPersistJourney(journeyId, lastAnnoPage.items) : undefined),
-    ).finally(() => {
+    // Membership and/or order of this journey changed whichever poi moved, so its path is
+    // recomputed - once for the whole move (issue #358), even when none of this list's own
+    // pois needs saving (e.g. its last poi dragged out into another list).
+    persistChanges(changedEntries(updated, canonicalItemsById), [journeyId]).finally(() => {
       pendingWritesRef.current -= 1;
     });
-  }, [journeyId, persist, recomputeAndPersistJourney]);
+  }, [canonicalItemsById, journeyId, localPois, persistChanges]);
 
   return (
     <ReactSortable
@@ -129,11 +152,11 @@ function JourneyPoiList({
 }
 
 JourneyPoiList.propTypes = {
+  canonicalItemsById: PropTypes.instanceOf(Map).isRequired,
   journeyId: PropTypes.string.isRequired,
-  persist: PropTypes.func.isRequired,
+  persistChanges: PropTypes.func.isRequired,
   // eslint-disable-next-line react/forbid-prop-types -- raw annotation JSON, no fixed shape
   pois: PropTypes.arrayOf(PropTypes.object).isRequired,
-  recomputeAndPersistJourney: PropTypes.func.isRequired,
   renderRow: PropTypes.func.isRequired,
 };
 
@@ -193,6 +216,7 @@ export default function SortableCanvasAnnotationsList({
   }, [t]);
 
   const canonicalGrouped = useMemo(() => groupAnnotationItems(items), [items]);
+  const canonicalItemsById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
   const canonicalTopLevel = useMemo(
     () => canonicalGrouped.map((entry) => entry.item),
     [canonicalGrouped],
@@ -210,15 +234,22 @@ export default function SortableCanvasAnnotationsList({
   // problem, one level up: a top-level drop persists each reordered item separately, and
   // `canonicalTopLevel` only catches up one commit at a time.
   const pendingWritesRef = useRef(0);
-  const [localTopLevel, setLocalTopLevel] = useState(canonicalTopLevel);
+  const [localTopLevel, setLocalTopLevel] = useState(() => sortableCopies(canonicalTopLevel));
 
   // See the module comment above: only this list's own canonical top-level items reset it,
   // and only when it isn't mid-drag or mid-persist itself - a journey's own nested drag
   // doesn't touch this.
   useEffect(() => {
     if (isDraggingRef.current || pendingWritesRef.current > 0) return;
-    setLocalTopLevel(canonicalTopLevel);
+    setLocalTopLevel(sortableCopies(canonicalTopLevel));
   }, [canonicalTopLevel]);
+
+  // The freshest known items of this canvas: the AnnotationPage the last settled write resolved
+  // with, which the `items` prop may not have re-rendered with yet.
+  const latestItemsRef = useRef(items);
+  useEffect(() => {
+    latestItemsRef.current = items;
+  }, [items]);
 
   const handleDragStart = useCallback(() => {
     isDraggingRef.current = true;
@@ -248,6 +279,7 @@ export default function SortableCanvasAnnotationsList({
     if (pendingPersistCount === 1) notifyPoiSaving();
     /** Runs this one annotation's write once every write queued ahead of it has settled. */
     const run = () => adapter.update(annotation).then((annoPage) => {
+      if (annoPage?.items) latestItemsRef.current = annoPage.items;
       receiveAnnotation(canvasId, adapter.annotationPageId, annoPage);
       return annoPage;
     });
@@ -266,21 +298,32 @@ export default function SortableCanvasAnnotationsList({
    * this canvas - typically the AnnotationPage a just-settled persist() resolved with, since
    * the `items` prop may not have re-rendered yet) and persists it through the same queue -
    * issue #358's automatic trigger, shared by every POI membership/order/delete site below and
-   * by the manual "refresh path" fallback action. A no-op when nothing actually changed, so a
-   * pure re-drop of a poi back where it started doesn't produce a spurious write. */
+   * by the manual "refresh path" fallback action. A no-op when the path didn't actually change,
+   * so moving a poi without changing the path doesn't produce a spurious write. */
   const recomputeAndPersistJourney = useCallback((journeyId, annoPageItems) => {
     if (!journeyId) return Promise.resolve();
     const updatedJourney = recomputeJourneyPath(journeyId, annoPageItems, canvasId);
     if (!updatedJourney) return Promise.resolve();
     const currentJourney = (annoPageItems ?? []).find((item) => item.id === journeyId);
-    if (currentJourney
-        && JSON.stringify(currentJourney.target) === JSON.stringify(updatedJourney.target)) {
+    if (currentJourney && isSameJourneyPath(currentJourney.target, updatedJourney.target)) {
       return Promise.resolve();
     }
     return persist(updatedJourney);
   }, [persist]);
 
+  /** Saves a move's changed entries, then - once every write queued so far has landed, the
+   * other list's included in a cross-list move - recomputes the paths of the journeys it
+   * affected from the freshest items. */
+  const persistChanges = useCallback((entries, journeyIds) => {
+    entries.forEach((entry) => persist(entry));
+    return persistQueueRef.current.then(() => Promise.all(
+      journeyIds.map((journeyId) => recomputeAndPersistJourney(journeyId, latestItemsRef.current)),
+    ));
+  }, [persist, recomputeAndPersistJourney]);
+
   const handleTopLevelSetList = useCallback((newList) => {
+    if (isSameOrder(newList, localTopLevel)) return;
+
     // Capture, before withTopLevelOrder clears it, any journey a newly-dropped-in poi is
     // leaving (issue #358) - a plain top-level reorder touches no journey itself, but a poi
     // dragged out of a journey's nested list into this one needs that journey's path
@@ -289,26 +332,16 @@ export default function SortableCanvasAnnotationsList({
     const vacatedJourneyIds = new Set(
       newList.map((entry) => entry['dbf:journey']?.id).filter(Boolean),
     );
-    const updated = newList.map((entry, position) => withTopLevelOrder(entry, position));
+    const updated = newList.map(
+      (entry, position) => withTopLevelOrder(withoutSortableState(entry), position),
+    );
     setLocalTopLevel(updated);
     pendingWritesRef.current += 1;
-    let lastAnnoPage;
-    updated.reduce(
-      (chain, entry) => chain.then(() => persist(entry).then((annoPage) => {
-        lastAnnoPage = annoPage;
-      })),
-      Promise.resolve(),
-    ).then(() => {
-      if (!lastAnnoPage) return undefined;
-      return Promise.all(
-        [...vacatedJourneyIds].map(
-          (vacatedJourneyId) => recomputeAndPersistJourney(vacatedJourneyId, lastAnnoPage.items),
-        ),
-      );
-    }).finally(() => {
-      pendingWritesRef.current -= 1;
-    });
-  }, [persist, recomputeAndPersistJourney]);
+    persistChanges(changedEntries(updated, canonicalItemsById), [...vacatedJourneyIds])
+      .finally(() => {
+        pendingWritesRef.current -= 1;
+      });
+  }, [canonicalItemsById, localTopLevel, persistChanges]);
 
   const handleSelect = useCallback((annotationId) => {
     if (window.getSelection()?.toString()) return;
@@ -423,10 +456,10 @@ export default function SortableCanvasAnnotationsList({
             <li key={item.id} style={{ listStyle: 'none' }} data-kind="Journey">
               {renderRow(item)}
               <JourneyPoiList
+                canonicalItemsById={canonicalItemsById}
                 journeyId={item.id}
-                persist={persist}
+                persistChanges={persistChanges}
                 pois={poisByJourneyId.get(item.id) ?? []}
-                recomputeAndPersistJourney={recomputeAndPersistJourney}
                 renderRow={renderRow}
               />
             </li>
