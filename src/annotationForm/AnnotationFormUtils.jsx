@@ -93,7 +93,7 @@ function getCurrentDateLocaleString() {
  * @param storageAdapter
  * @param receiveAnnotation
  * @param annotation
- * @returns {Promise<void>}
+ * @returns {Promise<object>} the AnnotationPage the save resolved with
  */
 export async function saveAnnotationInStorageAdapter(
   canvasId,
@@ -101,52 +101,43 @@ export async function saveAnnotationInStorageAdapter(
   receiveAnnotation,
   annotation,
 ) {
-  if (annotation?.maeData) {
-    if (annotation.id) {
-      // eslint-disable-next-line no-param-reassign
-      annotation.lastSavedDate = getCurrentDateLocaleString();
-      // eslint-disable-next-line no-param-reassign
-      annotation.lastEditor = storageAdapter.getStorageAdapterUser();
-      console.log('Annotation to update', annotation);
-      storageAdapter.update(annotation)
-        .then((annoPage) => {
-          receiveAnnotation(canvasId, storageAdapter.annotationPageId, annoPage);
-        });
-    } else {
-      // eslint-disable-next-line no-param-reassign
-      annotation.id = `${canvasId}/annotation/${uuidv4()}`;
-      // eslint-disable-next-line no-param-reassign
-      annotation.creationDate = getCurrentDateLocaleString();
-      // eslint-disable-next-line no-param-reassign
-      annotation.creator = storageAdapter.getStorageAdapterUser();
-      if (annotation?.maeData?.manifestNetwork) {
-        // Ugly tricks to solve manifest template annotation issue on creation
-        // For more see NetworkCommentTemplate:saveFunction
-        // eslint-disable-next-line no-param-reassign
-        annotation.id = `${annotation.id}#${annotation.maeData.manifestNetwork}`;
-      }
-      console.log('Annotation to create', annotation);
-      storageAdapter.create(annotation)
-        .then((annoPage) => {
-          receiveAnnotation(canvasId, storageAdapter.annotationPageId, annoPage);
-        });
-    }
-    // eslint-disable-next-line brace-style
-  }
+  /** Dispatches the AnnotationPage a save resolved with, then hands it on to the caller */
+  const receive = (annoPage) => {
+    receiveAnnotation(canvasId, storageAdapter.annotationPageId, annoPage);
+    return annoPage;
+  };
+
   // We are in IIIF template mode, so we just save the annotation as is
-  else if (annotation.id) {
-    storageAdapter.update(annotation)
-      .then((annoPage) => {
-        receiveAnnotation(canvasId, storageAdapter.annotationPageId, annoPage);
-      });
-  } else {
+  if (!annotation?.maeData) {
+    if (annotation.id) return storageAdapter.update(annotation).then(receive);
     // eslint-disable-next-line no-param-reassign
     annotation.id = `${canvasId}/annotation/${uuidv4()}`;
-    storageAdapter.create(annotation)
-      .then((annoPage) => {
-        receiveAnnotation(canvasId, storageAdapter.annotationPageId, annoPage);
-      });
+    return storageAdapter.create(annotation).then(receive);
   }
+
+  if (annotation.id) {
+    // eslint-disable-next-line no-param-reassign
+    annotation.lastSavedDate = getCurrentDateLocaleString();
+    // eslint-disable-next-line no-param-reassign
+    annotation.lastEditor = storageAdapter.getStorageAdapterUser();
+    console.log('Annotation to update', annotation);
+    return storageAdapter.update(annotation).then(receive);
+  }
+
+  // eslint-disable-next-line no-param-reassign
+  annotation.id = `${canvasId}/annotation/${uuidv4()}`;
+  // eslint-disable-next-line no-param-reassign
+  annotation.creationDate = getCurrentDateLocaleString();
+  // eslint-disable-next-line no-param-reassign
+  annotation.creator = storageAdapter.getStorageAdapterUser();
+  if (annotation?.maeData?.manifestNetwork) {
+    // Ugly tricks to solve manifest template annotation issue on creation
+    // For more see NetworkCommentTemplate:saveFunction
+    // eslint-disable-next-line no-param-reassign
+    annotation.id = `${annotation.id}#${annotation.maeData.manifestNetwork}`;
+  }
+  console.log('Annotation to create', annotation);
+  return storageAdapter.create(annotation).then(receive);
 }
 
 export const StyledToggleButtonGroup = styled(ToggleButtonGroup)(({ theme }) => ({

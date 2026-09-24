@@ -42,7 +42,7 @@ const noop = () => {};
  * general shape toolbar shared by every other template) - only AnnotationDrawing, the drawing
  * engine itself, which POI's SHAPES_TOOL.POI case extends additively.
  *
- * A Move/Target toggle floats over the bottom right of the map. A new point starts in Target,
+ * A Move/Target toggle floats over the top right of the map. A new point starts in Target,
  * so it can be placed right away; an existing one in Move, so navigating the map doesn't move
  * it by accident.
  * @param playerReferences
@@ -115,7 +115,7 @@ export function TargetPointInput({
     <Paper
       elevation={3}
       sx={{
-        bottom: (theme) => theme.spacing(2),
+        top: (theme) => theme.spacing(2),
         insetInlineEnd: (theme) => theme.spacing(2),
         position: 'absolute',
         zIndex: 10,
