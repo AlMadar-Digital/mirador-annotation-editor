@@ -109,7 +109,7 @@ const getIIIFTargetFromRectangleShape = (maeTarget, canvasId, shape) => {
  * @param {object} shape
  * @returns {{selector: {type: string, x: number, y: number}, source: string}}
  */
-const getIIIFTargetAsPointSelector = (canvasId, shape) => ({
+export const getIIIFTargetAsPointSelector = (canvasId, shape) => ({
   selector: {
     type: 'PointSelector',
     x: shape.x,

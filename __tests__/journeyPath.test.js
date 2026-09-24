@@ -1,4 +1,4 @@
-import { isSameJourneyPath, recomputeJourneyPath } from '../src/journeyPath';
+import { isSameJourneyPath, recomputeJourneyPath, refreshJourneyPath } from '../src/journeyPath';
 
 /** Builds a minimal raw journey annotation item for these tests. */
 const journey = (id, overrides = {}) => ({
@@ -274,5 +274,54 @@ describe('isSameJourneyPath', () => {
     expect(isSameJourneyPath(path('<svg>a</svg>'), path('<svg>b</svg>'))).toBe(false);
     expect(isSameJourneyPath(path('<svg>a</svg>', 'maps://placeholder'), path('<svg>a</svg>'))).toBe(false);
     expect(isSameJourneyPath('canv/1', path('<svg>a</svg>'))).toBe(false);
+  });
+});
+
+describe('refreshJourneyPath', () => {
+  const makeAdapter = () => ({
+    annotationPageId: 'page/1',
+    update: vi.fn(async () => ({ items: [] })),
+  });
+
+  it("saves the journey's recomputed path when a POI move changed it", async () => {
+    const adapter = makeAdapter();
+    const receiveAnnotation = vi.fn();
+    const annoPage = {
+      items: [
+        journey('journey-1'),
+        pointSelectorPoi('a', { journeyId: 'journey-1', order: 0, x: 10, y: 10 }),
+        pointSelectorPoi('b', { journeyId: 'journey-1', order: 1, x: 200, y: 100 }),
+      ],
+    };
+
+    await refreshJourneyPath('journey-1', annoPage, 'canvas/1', adapter, receiveAnnotation);
+
+    expect(adapter.update).toHaveBeenCalledTimes(1);
+    expect(adapter.update.mock.calls[0][0].id).toBe('journey-1');
+    expect(adapter.update.mock.calls[0][0].target.source).toBe('canvas/1');
+    expect(receiveAnnotation).toHaveBeenCalledWith('canvas/1', 'page/1', { items: [] });
+  });
+
+  it('saves nothing when the path is unchanged', async () => {
+    const adapter = makeAdapter();
+    const items = [
+      journey('journey-1'),
+      pointSelectorPoi('a', { journeyId: 'journey-1', order: 0, x: 10, y: 10 }),
+      pointSelectorPoi('b', { journeyId: 'journey-1', order: 1, x: 200, y: 100 }),
+    ];
+    const { target } = recomputeJourneyPath('journey-1', items, 'canvas/1');
+    items[0] = journey('journey-1', { target });
+
+    await refreshJourneyPath('journey-1', { items }, 'canvas/1', adapter, vi.fn());
+
+    expect(adapter.update).not.toHaveBeenCalled();
+  });
+
+  it('does nothing for a POI outside any journey', async () => {
+    const adapter = makeAdapter();
+
+    await refreshJourneyPath(undefined, { items: [] }, 'canvas/1', adapter, vi.fn());
+
+    expect(adapter.update).not.toHaveBeenCalled();
   });
 });

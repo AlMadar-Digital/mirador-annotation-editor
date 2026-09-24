@@ -12,7 +12,7 @@ import {
 } from './AnnotationFormUtils';
 import { getTemplateType, TEMPLATE_TYPES } from './templates/registry';
 import { getContextParams } from '../contextParams';
-import { isSameJourneyPath, recomputeJourneyPath } from '../journeyPath';
+import { refreshJourneyPath } from '../journeyPath';
 import AnnotationFormHeader from './AnnotationFormHeader';
 import AnnotationFormBody from './AnnotationFormBody';
 import '../custom.css';
@@ -205,17 +205,13 @@ function AnnotationForm(
         // A POI saved from its form may have had its marker moved (issue #358): its journey's
         // path goes through that marker, so it must be recomputed - like it already is on
         // every POI membership/order/delete change - or it would keep pointing at the old spot.
-        const journeyId = annotationStateToBeSaved?.['dbf:journey']?.id;
-        if (!journeyId || !annoPage?.items) return undefined;
-        const updatedJourney = recomputeJourneyPath(journeyId, annoPage.items, canvas.id);
-        if (!updatedJourney) return undefined;
-        const currentJourney = annoPage.items.find((item) => item.id === journeyId);
-        if (currentJourney && isSameJourneyPath(currentJourney.target, updatedJourney.target)) {
-          return undefined;
-        }
-        const updatedAnnoPage = await storageAdapter.update(updatedJourney);
-        receiveAnnotation(canvas.id, storageAdapter.annotationPageId, updatedAnnoPage);
-        return undefined;
+        return refreshJourneyPath(
+          annotationStateToBeSaved?.['dbf:journey']?.id,
+          annoPage,
+          canvas.id,
+          storageAdapter,
+          receiveAnnotation,
+        );
       });
 
     return Promise.all(promises)

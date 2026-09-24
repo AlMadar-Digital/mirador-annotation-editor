@@ -31,7 +31,7 @@ const ensureMaeData = (item) => (
  * @param {object} poiItem
  * @returns {{ x: number, y: number, fullCanvaXYWH: string|undefined } | null}
  */
-const getPoiPathPoint = (poiItem) => {
+export const getPoiPathPoint = (poiItem) => {
   const hydrated = ensureMaeData(poiItem);
   const target = hydrated.maeData?.target;
   if (!target?.drawingState) return null;
@@ -143,4 +143,31 @@ export const isSameJourneyPath = (a, b) => {
   const pathB = journeyPathSvg(b);
   if (pathA === null || pathB === null) return pathA === pathB;
   return pathA === pathB && a.source === b.source;
+};
+
+/**
+ * Recomputes and saves `journeyId`'s path after a write that may have moved one of its POIs
+ * (issue #358): a POI saved from its form, or dragged on the map (AlMadar-Digital/platform#427).
+ * A no-op when the path didn't change, so a save that moved nothing produces no extra write.
+ * @param {string|undefined} journeyId
+ * @param {object} annoPage - the AnnotationPage the POI's own save resolved with
+ * @param {string} canvasId
+ * @param {object} storageAdapter
+ * @param {Function} receiveAnnotation
+ * @returns {Promise<void>}
+ */
+export const refreshJourneyPath = async (
+  journeyId,
+  annoPage,
+  canvasId,
+  storageAdapter,
+  receiveAnnotation,
+) => {
+  if (!journeyId || !annoPage?.items) return;
+  const updatedJourney = recomputeJourneyPath(journeyId, annoPage.items, canvasId);
+  if (!updatedJourney) return;
+  const currentJourney = annoPage.items.find((item) => item.id === journeyId);
+  if (currentJourney && isSameJourneyPath(currentJourney.target, updatedJourney.target)) return;
+  const updatedAnnoPage = await storageAdapter.update(updatedJourney);
+  receiveAnnotation(canvasId, storageAdapter.annotationPageId, updatedAnnoPage);
 };
