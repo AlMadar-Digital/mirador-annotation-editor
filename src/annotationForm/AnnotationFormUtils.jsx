@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { styled } from '@mui/material/styles';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import { OVERLAY_TOOL } from './AnnotationFormOverlay/KonvaDrawing/KonvaUtils';
+import { needsTopLevelOrder, nextTopLevelOrder } from '../annotationListGrouping';
 
 export const TEMPLATE = {
   IIIF_TYPE: 'iiif',
@@ -124,6 +125,14 @@ export async function saveAnnotationInStorageAdapter(
     return storageAdapter.update(annotation).then(receive);
   }
 
+  // A new poi/journey goes at the end of the map's list rather than being saved without an
+  // order (issue #434): every top-level item then has a dbf:order, which the map viewer's
+  // POI tour follows - unordered items would fall back to an arbitrary id order.
+  if (needsTopLevelOrder(annotation)) {
+    const annoPage = await storageAdapter.all();
+    // eslint-disable-next-line no-param-reassign
+    annotation['dbf:order'] = nextTopLevelOrder(annoPage?.items);
+  }
   // eslint-disable-next-line no-param-reassign
   annotation.id = `${canvasId}/annotation/${uuidv4()}`;
   // eslint-disable-next-line no-param-reassign

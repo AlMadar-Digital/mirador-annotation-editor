@@ -1,5 +1,10 @@
 import {
-  annotationTitle, groupAnnotationItems, withJourneyOrder, withTopLevelOrder,
+  annotationTitle,
+  groupAnnotationItems,
+  needsTopLevelOrder,
+  nextTopLevelOrder,
+  withJourneyOrder,
+  withTopLevelOrder,
 } from '../src/annotationListGrouping';
 
 /** Builds a minimal raw poi annotation item for these tests. */
@@ -151,5 +156,37 @@ describe('withJourneyOrder', () => {
     withJourneyOrder(original, 'journey-2', 1);
 
     expect(original['dbf:journey']).toBeUndefined();
+  });
+});
+
+describe('needsTopLevelOrder', () => {
+  it('is true for a new standalone poi or journey without an order', () => {
+    expect(needsTopLevelOrder(poi('p'))).toBe(true);
+    expect(needsTopLevelOrder(poi('p', { 'dbf:journey': null, 'dbf:order': null }))).toBe(true);
+    expect(needsTopLevelOrder(journey('j'))).toBe(true);
+  });
+
+  it('is false for a journey stop, an already ordered item, or a non-map annotation', () => {
+    expect(needsTopLevelOrder(poi('p', { 'dbf:journey': { id: 'j', order: 0 } }))).toBe(false);
+    expect(needsTopLevelOrder(poi('p', { 'dbf:order': 0 }))).toBe(false);
+    expect(needsTopLevelOrder({ id: 'plain' })).toBe(false);
+  });
+});
+
+describe('nextTopLevelOrder', () => {
+  it('is one past the highest top-level order', () => {
+    expect(nextTopLevelOrder([
+      journey('j', { 'dbf:order': 0 }),
+      poi('p', { 'dbf:order': 3 }),
+      // a stop's order is its position within the journey, not a top-level one
+      poi('stop', { 'dbf:journey': { id: 'j', order: 9 } }),
+      poi('unordered'),
+    ])).toBe(4);
+  });
+
+  it('is 0 on a list without ordered items', () => {
+    expect(nextTopLevelOrder([])).toBe(0);
+    expect(nextTopLevelOrder(undefined)).toBe(0);
+    expect(nextTopLevelOrder([poi('unordered')])).toBe(0);
   });
 });
