@@ -60,6 +60,32 @@ export const groupAnnotationItems = (items = []) => {
 };
 
 /**
+ * Whether a new annotation needs a top-level dbf:order: a poi or journey that isn't a journey's
+ * stop (whose position is dbf:journey.order instead) and has no order yet.
+ * @param {object} item
+ * @returns {boolean}
+ */
+export const needsTopLevelOrder = (item) => (
+  (item?.['dbf:kind'] === 'POI' || item?.['dbf:kind'] === 'Journey')
+  && !item['dbf:journey']?.id
+  && (item['dbf:order'] === null || item['dbf:order'] === undefined)
+);
+
+/**
+ * The dbf:order that puts a new top-level item at the end of the list: one past the highest
+ * top-level order already used (0 on an empty list). Items still without an order keep
+ * sorting after it, as they do after every ordered item.
+ * @param {object[]} items the canvas's existing AnnotationPage.items
+ * @returns {number}
+ */
+export const nextTopLevelOrder = (items = []) => {
+  const orders = groupAnnotationItems(items)
+    .map(({ order }) => order)
+    .filter((order) => Number.isFinite(order));
+  return orders.length > 0 ? Math.max(...orders) + 1 : 0;
+};
+
+/**
  * Reads a display title out of an annotation's body: the identifying TextualBody item for
  * `language`, falling back to the first identifying item of any language, then to an empty
  * string (the list renders that as an em-dash placeholder rather than crashing).
