@@ -20,6 +20,7 @@ import InfoIcon from '@mui/icons-material/Info';
 import RouteIcon from '@mui/icons-material/Route';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AnnotationActionsContext from './AnnotationActionsContext';
+import DeleteAnnotationDialog, { annotationTitle } from './DeleteAnnotationDialog';
 import WhoAndWhenFormSection, { TOOLTIP_MODE } from './annotationForm/WhoAndWhenFormSection';
 import HotkeyTooltip from "./hotkeys/HotkeyTooltip";
 import { isSameJourneyPath, recomputeJourneyPath } from './journeyPath';
@@ -29,6 +30,8 @@ const CanvasListItem = forwardRef((props, ref) => {
   const theme = useTheme();
   const [isHovering, setIsHovering] = useState(false);
   const [journeyMenuAnchor, setJourneyMenuAnchor] = useState(null);
+  // Issue #460: Delete asks first, like the Delete/Backspace hotkey does.
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const context = useContext(AnnotationActionsContext);
   // Maps-only (issue #377): a poi row's own list of assignable journeys, its current journey
   // (if any) and the callback to reassign it - undefined for every other annotation kind this
@@ -372,7 +375,7 @@ const CanvasListItem = forwardRef((props, ref) => {
                 <span>
                   <ToggleButton
                     aria-label="Delete"
-                    onClick={handleDelete}
+                    onClick={() => setIsConfirmingDelete(true)}
                     value="delete"
                     disabled={!context.annotationEditCompanionWindowIsOpened}
                   >
@@ -385,6 +388,15 @@ const CanvasListItem = forwardRef((props, ref) => {
         </div>
 
       )}
+      <DeleteAnnotationDialog
+        onCancel={() => setIsConfirmingDelete(false)}
+        onConfirm={() => {
+          setIsConfirmingDelete(false);
+          handleDelete();
+        }}
+        open={isConfirmingDelete}
+        title={annotationTitle(annotationData, context.config?.language)}
+      />
       {!!journeys && (
         <Menu
           anchorEl={journeyMenuAnchor}

@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import CanvasListItem from '../src/CanvasListItem';
 import AnnotationActionsContext from '../src/AnnotationActionsContext';
 import {
-  fireEvent, render, screen, waitFor,
+  fireEvent, render, screen, waitFor, within,
 } from './test-utils';
 
 const receiveAnnotation = vi.fn();
@@ -311,7 +311,7 @@ describe('CanvasListItem', () => {
       .toBeNull();
   });
 
-  it('deletes via storageAdapter on delete click', async () => {
+  it('deletes via storageAdapter on delete click, once confirmed (issue #460)', async () => {
     createWrapper({}, {
       annotationEditCompanionWindowIsOpened: true,
       annotationsOnCanvases: {
@@ -343,11 +343,47 @@ describe('CanvasListItem', () => {
     const deleteButton = screen.getByRole('button', { name: /delete/i });
     await userEvent.click(deleteButton);
     // fireEvent.click(deleteButton);
+    expect(storageAdapter).not.toHaveBeenCalled();
+
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /delete/i }));
 
     expect(storageAdapter)
       .toHaveBeenCalledTimes(1);
     expect(storageAdapter)
       .toHaveBeenCalledWith('canv/1');
+  });
+
+  it('keeps the annotation when its deletion is cancelled (issue #460)', async () => {
+    storageAdapter.mockClear();
+    createWrapper({}, {
+      annotationEditCompanionWindowIsOpened: true,
+      annotationsOnCanvases: {
+        'canv/1': {
+          'annoPage/1': {
+            json: {
+              items: [{
+                body: [{
+                  language: 'en', purpose: 'identifying', type: 'TextualBody', value: 'Cairo',
+                }],
+                id: 'anno/1',
+                maeData: { someData: 'someValue' },
+              }],
+            },
+          },
+        },
+      },
+      canvases: [{ id: 'canv/1' }],
+    });
+
+    await userEvent.hover(screen.getByText('HelloWorld').closest('li'));
+    await userEvent.click(screen.getByRole('button', { name: /delete/i }));
+
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText('delete_annotation_confirm_title')).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole('button', { name: /cancel/i }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(storageAdapter).not.toHaveBeenCalled();
   });
 
   describe('move to journey (issue #377)', () => {
@@ -491,6 +527,7 @@ describe('CanvasListItem', () => {
       const li = screen.getByText('HelloWorld').closest('li');
       await userEvent.hover(li);
       await userEvent.click(screen.getByRole('button', { name: /delete/i }));
+      await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /delete/i }));
 
       await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
       const journeyWrite = update.mock.calls[0][0];
