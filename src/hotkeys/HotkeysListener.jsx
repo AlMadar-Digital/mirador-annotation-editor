@@ -1,7 +1,8 @@
-import { useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useStore } from 'react-redux';
 import { getFocusedWindowId, getConfig } from 'dbf-mirador';
 import HOTKEY_ACTIONS from './hotkeysDefinitions';
+import DeleteAnnotationDialog, { annotationTitle } from '../DeleteAnnotationDialog';
 
 /** Elements where keystrokes should NOT trigger hotkeys */
 const IGNORED_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
@@ -19,6 +20,11 @@ let activeHandler = null;
  */
 export default function HotkeysListener() {
   const store = useStore();
+  // The annotation a Delete/Backspace is waiting to delete, until the dialog is answered.
+  const [pendingDelete, setPendingDelete] = useState(null);
+  // Read by the keydown handler, which is only registered once.
+  const pendingDeleteRef = useRef(null);
+  pendingDeleteRef.current = pendingDelete;
 
   useEffect(() => {
     // Remove any stale listener left from a previous mount
@@ -30,6 +36,8 @@ export default function HotkeysListener() {
 
     /** Handler for keydown events */
     const handler = (e) => {
+      // The confirmation dialog handles its own keys (Escape cancels it).
+      if (pendingDeleteRef.current) return;
       if (isEditableTarget(e.target)) return;
       const match = Object.values(HOTKEY_ACTIONS).find((h) => h.keys.includes(e.key));
       if (!match) return;
@@ -44,6 +52,10 @@ export default function HotkeysListener() {
       e.preventDefault();
       match.handler({
         config,
+        confirmDelete: (annotation, performDelete) => setPendingDelete({
+          performDelete,
+          title: annotationTitle(annotation, config?.language),
+        }),
         dispatch: store.dispatch,
         state,
         windowId,
@@ -60,5 +72,15 @@ export default function HotkeysListener() {
     };
   }, [store]);
 
-  return null;
+  return (
+    <DeleteAnnotationDialog
+      onCancel={() => setPendingDelete(null)}
+      onConfirm={() => {
+        pendingDelete.performDelete();
+        setPendingDelete(null);
+      }}
+      open={!!pendingDelete}
+      title={pendingDelete?.title}
+    />
+  );
 }
