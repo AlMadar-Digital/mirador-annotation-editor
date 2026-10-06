@@ -1,5 +1,4 @@
 import {
-  addCompanionWindow,
   deselectAnnotation,
   getCompanionWindowsForContent,
   getSelectedAnnotationId,
@@ -8,6 +7,7 @@ import {
   removeCompanionWindow,
 } from 'dbf-mirador';
 import { MAE_DELETE_SHAPE_EVENT, MAE_SAVE_EVENT } from './hotkeysEvents';
+import { openAnnotationEditor } from '../annotationPreview';
 
 /** Return the open companion windows for a given window */
 function getAnnotationCompanionWindows(state, windowId) {
@@ -83,7 +83,7 @@ function createAnnotation({ state, dispatch, windowId }) {
   // Only create if no annotation companion window is already open
   if (companionWindows.length > 0) return;
 
-  dispatch(addCompanionWindow(windowId, { content: 'annotationCreation', position: 'right' }));
+  dispatch(openAnnotationEditor(windowId));
 }
 
 /** Escape handler: unselect anno / close companion window */

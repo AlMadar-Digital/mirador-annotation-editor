@@ -108,7 +108,6 @@ export const ar = {
   poi_title: "العنوان",
   poi_title_required: "أدخل عنوانًا لكل لغة.",
   polygon: "مضلع",
-  previewAnnotation: "معاينة",
   pressEnterOrClickFirstPointToClose: "انقر على النقطة الأولى أو اضغط \"Shift\" لإغلاق المضلع، أو \"Tab\" لتركه مفتوحًا",
   pressEnterToAddTag: "أضف الوسم واضغط \"Enter\"",
   pressEscapeToFinish: "اضغط \"Esc\" لإنهاء الخط",

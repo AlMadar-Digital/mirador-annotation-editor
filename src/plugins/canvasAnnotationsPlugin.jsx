@@ -2,7 +2,6 @@ import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import PropTypes from 'prop-types';
 import {
   addCompanionWindow,
-  addCompanionWindow as addCompanionWindowAction,
   deselectAnnotation as deselectAnnotationAction,
   getCompanionWindowsForContent,
   getVisibleCanvases,
@@ -24,6 +23,7 @@ import {
   scrollToSelectedAnnotation,
 } from './canvasAnnotationsPluginUtils';
 import { useContextParams } from '../contextParams';
+import { openAnnotationEditor, previewAnnotation } from '../annotationPreview';
 
 // TODO Attention merge M4upstream
 /**
@@ -45,8 +45,10 @@ function CanvasAnnotationsWrapper({
   canvases = [],
   config,
   deselectAnnotation,
+  editAnnotation,
   highlightAllAnnotations,
   openNestedMap,
+  previewAnnotation: showPreview,
   receiveAnnotation,
   switchToSingleCanvasView,
   TargetComponent,
@@ -54,7 +56,6 @@ function CanvasAnnotationsWrapper({
   updateWindow,
   windowViewType,
   annotationEditCompanionWindowIsOpened,
-  annotationPreviewCompanionWindowIsOpened,
 }) {
   const [singleCanvasDialogOpen, setSingleCanvasDialogOpen] = useState(false);
 
@@ -157,12 +158,9 @@ function CanvasAnnotationsWrapper({
     if (!annotationEditCompanionWindowIsOpened) return; // companion window already open
     if (!isAnnotationEditable(selId)) return;
 
-    addCompanionWindow('annotationCreation', {
-      annotationid: selId,
-      position: 'right',
-    });
+    editAnnotation(selId);
   }, [isEditMode, targetProps?.selectedAnnotationId, annotationEditCompanionWindowIsOpened,
-    isAnnotationEditable, addCompanionWindow]);
+    isAnnotationEditable, editAnnotation]);
 
   const props = {
     containerRef: bridgedScrollRef,
@@ -183,13 +181,23 @@ function CanvasAnnotationsWrapper({
     (item) => item['dbf:kind'] === 'POI' || item['dbf:kind'] === 'Journey',
   );
 
+  // Issue #457: selecting a POI/journey row (which highlights it on the map) also shows its
+  // preview, as clicking its pin on the map already does - no separate Preview button.
+  const selectAnnotation = targetProps?.selectAnnotation;
+  const selectAndPreviewAnnotation = useCallback((windowId, annotationId) => {
+    selectAnnotation(windowId, annotationId);
+    if (rawItemsForCanvas.some((item) => item.id === annotationId && item['dbf:kind'])) {
+      showPreview(annotationId);
+    }
+  }, [selectAnnotation, rawItemsForCanvas, showPreview]);
+
   const contextValue = useMemo(() => ({
     addCompanionWindow,
     annotationEditCompanionWindowIsOpened,
-    annotationPreviewCompanionWindowIsOpened,
     annotationsOnCanvases,
     canvases,
     config,
+    editAnnotation,
     openNestedMap,
     receiveAnnotation,
     storageAdapter: config.annotation.adapter,
@@ -200,10 +208,10 @@ function CanvasAnnotationsWrapper({
   }), [
     addCompanionWindow,
     annotationEditCompanionWindowIsOpened,
-    annotationPreviewCompanionWindowIsOpened,
     annotationsOnCanvases,
     canvases,
     config,
+    editAnnotation,
     openNestedMap,
     receiveAnnotation,
     t,
@@ -224,7 +232,7 @@ function CanvasAnnotationsWrapper({
             items={rawItemsForCanvas}
             label={targetProps.label}
             receiveAnnotation={receiveAnnotation}
-            selectAnnotation={targetProps.selectAnnotation}
+            selectAnnotation={selectAndPreviewAnnotation}
             selectedAnnotationId={targetProps.selectedAnnotationId}
             storageAdapter={config.annotation.adapter}
             totalSize={targetProps.totalSize}
@@ -250,7 +258,6 @@ function CanvasAnnotationsWrapper({
 CanvasAnnotationsWrapper.propTypes = {
   addCompanionWindow: PropTypes.func.isRequired,
   annotationEditCompanionWindowIsOpened: PropTypes.bool.isRequired,
-  annotationPreviewCompanionWindowIsOpened: PropTypes.bool.isRequired,
   annotationsOnCanvases: PropTypes.shape({
     id: PropTypes.string,
     isFetching: PropTypes.bool,
@@ -290,8 +297,10 @@ CanvasAnnotationsWrapper.propTypes = {
     translations: PropTypes.objectOf(PropTypes.object),
   }).isRequired,
   deselectAnnotation: PropTypes.func.isRequired,
+  editAnnotation: PropTypes.func.isRequired,
   highlightAllAnnotations: PropTypes.bool.isRequired,
   openNestedMap: PropTypes.func.isRequired,
+  previewAnnotation: PropTypes.func.isRequired,
   receiveAnnotation: PropTypes.func.isRequired,
   switchToSingleCanvasView: PropTypes.func.isRequired,
   t: PropTypes.func.isRequired,
@@ -308,11 +317,6 @@ function mapStateToProps(state, { targetProps: { windowId } }) {
   const annotationsOnCanvases = {};
   const creation = getCompanionWindowsForContent(state, { content: 'annotationCreation', windowId });
   const annotationEditCompanionWindowIsOpened = Object.keys(creation).length === 0;
-  // Mirrors the guard above, for the maps plugin's own 'mapsPoiPreview' companion window
-  // (issue #375) - keeps CanvasListItem's Preview button from stacking a new preview
-  // window per click the same way Edit/Delete already avoid stacking edit windows.
-  const preview = getCompanionWindowsForContent(state, { content: 'mapsPoiPreview', windowId });
-  const annotationPreviewCompanionWindowIsOpened = Object.keys(preview).length === 0;
 
   canvases.forEach((canvas) => {
     const anno = state.annotations[canvas.id];
@@ -325,7 +329,6 @@ function mapStateToProps(state, { targetProps: { windowId } }) {
   //  Perhaps a regression to remove it
   return {
     annotationEditCompanionWindowIsOpened,
-    annotationPreviewCompanionWindowIsOpened,
     annotationsOnCanvases,
     canvases,
     config: {
@@ -344,8 +347,10 @@ function mapStateToProps(state, { targetProps: { windowId } }) {
  *
  * - `addCompanionWindow`: Open a companion window for the given window ID,
  *   with specified content and optional extra props.
+ * - `editAnnotation`: Open the annotation form on an annotation, in place of its preview.
  * - `openNestedMap`: Show a Nested Map point's linked map in place of the window's current
  *   map, with dbf-mirador's Back button (its `nestedMapPlugins`) leading back to it.
+ * - `previewAnnotation`: Show an annotation in dbf-mirador's preview companion window.
  * - `receiveAnnotation`: Add or update an annotation in the Redux store
  *   for a specific target.
  * - `switchToSingleCanvasView`: Change the current window's view type
@@ -358,7 +363,9 @@ function mapStateToProps(state, { targetProps: { windowId } }) {
  * @param {string} props.targetProps.windowId - The ID of the Mirador window.
  * @returns {object} An object mapping action dispatchers to props.
  * @property {function(string, object):void} addCompanionWindow
+ * @property {function(string):void} editAnnotation
  * @property {function(string):void} openNestedMap
+ * @property {function(string):void} previewAnnotation
  * @property {function(string, string, object):void} receiveAnnotation
  * @property {function():void} switchToSingleCanvasView
  */
@@ -370,8 +377,14 @@ const mapDispatchToProps = (dispatch, props) => ({
   deselectAnnotation: () => dispatch(
     deselectAnnotationAction(props.targetProps.windowId),
   ),
+  editAnnotation: (annotationid) => dispatch(
+    openAnnotationEditor(props.targetProps.windowId, annotationid),
+  ),
   openNestedMap: (manifestId) => dispatch(
     openNestedMapAction(props.targetProps.windowId, manifestId),
+  ),
+  previewAnnotation: (annotationid) => dispatch(
+    previewAnnotation(props.targetProps.windowId, annotationid),
   ),
   receiveAnnotation: (targetId, id, annotation) => dispatch(
     receiveAnnotationAction(targetId, id, annotation),

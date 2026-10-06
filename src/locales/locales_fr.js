@@ -108,7 +108,6 @@ export const fr = {
   poi_title: 'Titre',
   poi_title_required: 'Saisissez un titre dans chaque langue.',
   polygon: 'Polygone',
-  previewAnnotation: 'Aperçu',
   pressEnterOrClickFirstPointToClose: 'Cliquez sur le premier point ou appuyez sur "Maj" pour fermer le polygone, "Tab" pour laisser ouvert',
   pressEnterToAddTag: 'Valider avec "Entrée"',
   pressEscapeToFinish: 'Appuyez sur "Échap" pour terminer la ligne',
