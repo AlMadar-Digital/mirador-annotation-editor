@@ -1,4 +1,4 @@
-import Mirador, { nestedMapPlugins } from 'dbf-mirador';
+import Mirador, { nestedMapPlugins, poiPreviewPlugins } from 'dbf-mirador';
 import annotationPlugins from '../../src';
 import LocalStorageAdapter from '../../src/annotationAdapter/LocalStorageAdapter';
 
@@ -77,5 +77,6 @@ const config = {
   ],
 };
 
-// dbf-mirador's Back button, for a nested map opened in place from its "Open map" row button.
-Mirador.viewer(config, [...annotationPlugins, ...nestedMapPlugins]);
+// dbf-mirador's POI/journey preview (opened by selecting a row or a pin, issue #457), and its
+// Back button, for a nested map opened in place from its "Open map" row button.
+Mirador.viewer(config, [...annotationPlugins, ...poiPreviewPlugins, ...nestedMapPlugins]);
