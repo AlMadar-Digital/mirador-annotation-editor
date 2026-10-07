@@ -30,6 +30,8 @@ function AnnotationForm(
     id,
     playerReferences,
     receiveAnnotation,
+    reopenPreview,
+    returnToPreview,
     windowId,
   },
 ) {
@@ -217,6 +219,8 @@ function AnnotationForm(
     return Promise.all(promises)
       .then(() => {
         closeFormCompanionWindow();
+        // Issue #457: back to the preview Edit replaced, now showing the saved content.
+        if (returnToPreview) reopenPreview(returnToPreview);
       });
   };
   return (
@@ -299,7 +303,17 @@ AnnotationForm.propTypes = {
   // eslint-disable-next-line react/forbid-prop-types
   playerReferences: PropTypes.object.isRequired,
   receiveAnnotation: PropTypes.func.isRequired,
+  reopenPreview: PropTypes.func,
+  returnToPreview: PropTypes.shape({
+    annotationid: PropTypes.string.isRequired,
+    position: PropTypes.string,
+  }),
   windowId: PropTypes.string.isRequired,
+};
+
+AnnotationForm.defaultProps = {
+  reopenPreview: () => {},
+  returnToPreview: null,
 };
 
 export default AnnotationForm;

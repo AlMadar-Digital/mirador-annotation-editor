@@ -113,44 +113,43 @@ describe('CanvasListItem', () => {
       .toBeInTheDocument();
   });
 
-  it('only shows preview for maps annotations (dbf:kind present), and opens the mapsPoiPreview companion window on click', async () => {
-    const addCompanionWindow = vi.fn();
-
+  it('has no preview button: selecting the row previews it (issue #457)', async () => {
     createWrapper({}, {
-      addCompanionWindow,
-      annotationPreviewCompanionWindowIsOpened: true,
       annotationsOnCanvases: {
         'canv/1': {
           'annoPage/1': {
-            json: {
-              items: [
-                {
-                  'dbf:kind': 'POI',
-                  id: 'anno/1',
-                  maeData: { someData: 'someValue' }
-                }
-              ]
-            }
-          }
-        }
+            json: { items: [{ 'dbf:kind': 'POI', id: 'anno/1', maeData: { someData: 'someValue' } }] },
+          },
+        },
       },
-      canvases: [{ id: 'canv/1' }]
+      canvases: [{ id: 'canv/1' }],
     });
 
-    const li = screen.getByText('HelloWorld')
-      .closest('li');
-    await userEvent.hover(li);
+    await userEvent.hover(screen.getByText('HelloWorld').closest('li'));
 
-    const previewButton = screen.getByRole('button', { name: /preview/i });
-    expect(previewButton)
-      .toBeInTheDocument();
-    expect(previewButton)
-      .toBeEnabled();
+    expect(screen.queryByRole('button', { name: /preview/i })).toBeNull();
+  });
 
-    await userEvent.click(previewButton);
+  it('edits through the context editAnnotation, which replaces the preview (issue #457)', async () => {
+    const editAnnotation = vi.fn();
+    createWrapper({}, {
+      annotationEditCompanionWindowIsOpened: true,
+      annotationsOnCanvases: {
+        'canv/1': {
+          'annoPage/1': {
+            json: { items: [{ 'dbf:kind': 'POI', id: 'anno/1', maeData: { someData: 'someValue' } }] },
+          },
+        },
+      },
+      canvases: [{ id: 'canv/1' }],
+      editAnnotation,
+      windowViewType: 'single',
+    });
 
-    expect(addCompanionWindow)
-      .toHaveBeenCalledWith('mapsPoiPreview', { annotationid: 'anno/1', position: 'right' });
+    await userEvent.hover(screen.getByText('HelloWorld').closest('li'));
+    await userEvent.click(screen.getByRole('button', { name: /edit/i }));
+
+    expect(editAnnotation).toHaveBeenCalledWith('anno/1');
   });
 
   it('shows "open nested map" instead of preview for a Nested Map point (dbf:linkedMap present), and delegates to config.annotation.openLinkedMap on click', async () => {
@@ -158,7 +157,6 @@ describe('CanvasListItem', () => {
     const linkedMap = { id: 'map/2', titleEn: 'Nested map' };
 
     createWrapper({}, {
-      annotationPreviewCompanionWindowIsOpened: true,
       annotationsOnCanvases: {
         'canv/1': {
           'annoPage/1': {
@@ -197,7 +195,6 @@ describe('CanvasListItem', () => {
   });
 
   const nestedMapContext = (linkedMap, extra = {}) => ({
-    annotationPreviewCompanionWindowIsOpened: true,
     annotationsOnCanvases: {
       'canv/1': {
         'annoPage/1': {
@@ -253,62 +250,6 @@ describe('CanvasListItem', () => {
     await userEvent.hover(screen.getByText('HelloWorld').closest('li'));
 
     expect(screen.queryByRole('button', { name: /open nested map/i })).toBeNull();
-  });
-
-  it('disables preview while a preview companion window is already open', async () => {
-    createWrapper({}, {
-      annotationPreviewCompanionWindowIsOpened: false,
-      annotationsOnCanvases: {
-        'canv/1': {
-          'annoPage/1': {
-            json: {
-              items: [
-                {
-                  'dbf:kind': 'POI',
-                  id: 'anno/1',
-                  maeData: { someData: 'someValue' }
-                }
-              ]
-            }
-          }
-        }
-      },
-      canvases: [{ id: 'canv/1' }]
-    });
-
-    const li = screen.getByText('HelloWorld')
-      .closest('li');
-    await userEvent.hover(li);
-
-    expect(screen.getByRole('button', { name: /preview/i }))
-      .toBeDisabled();
-  });
-
-  it('does not show preview for a non-maps annotation (no dbf:kind)', async () => {
-    createWrapper({}, {
-      annotationsOnCanvases: {
-        'canv/1': {
-          'annoPage/1': {
-            json: {
-              items: [
-                {
-                  id: 'anno/1',
-                  maeData: { someData: 'someValue' }
-                }
-              ]
-            }
-          }
-        }
-      },
-      canvases: [{ id: 'canv/1' }]
-    });
-
-    const li = screen.getByText('HelloWorld')
-      .closest('li');
-    await userEvent.hover(li);
-
-    expect(screen.queryByRole('button', { name: /preview/i }))
-      .toBeNull();
   });
 
   it('deletes via storageAdapter on delete click, once confirmed (issue #460)', async () => {

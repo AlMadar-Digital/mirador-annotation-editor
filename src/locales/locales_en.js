@@ -108,7 +108,6 @@ export const en = {
   poi_title: 'Title',
   poi_title_required: 'Enter a title in each language.',
   polygon: 'Polygon',
-  previewAnnotation: 'Preview',
   pressEnterOrClickFirstPointToClose: 'Click first point or press "Shift" to close polygon, "Tab" to leave open',
   pressEnterToAddTag: 'Add your tag and press "Enter"',
   pressEscapeToFinish: 'Press "Esc" to finish the line',

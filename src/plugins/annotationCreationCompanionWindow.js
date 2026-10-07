@@ -11,6 +11,7 @@ import {
 import annotationForm from '../annotationForm/AnnotationForm';
 import { WindowPlayer } from '../playerReferences';
 import translations from '../locales/locales';
+import { reopenPreview as reopenPreviewAction } from '../annotationPreview';
 
 /** */
 const mapDispatchToProps = (dispatch, {
@@ -22,7 +23,10 @@ const mapDispatchToProps = (dispatch, {
   ),
   receiveAnnotation: (targetId, annoId, annotation) => dispatch(
     receiveAnnotationAction(targetId, annoId, annotation),
-  )
+  ),
+  reopenPreview: (returnToPreview) => dispatch(
+    reopenPreviewAction(windowId, returnToPreview),
+  ),
 });
 
 /** */
@@ -35,7 +39,8 @@ function mapStateToProps(state, {
     companionWindowId,
     windowId,
   });
-  const { annotationid } = cw;
+  // `returnToPreview`: the preview this form replaced (see openAnnotationEditor)
+  const { annotationid, returnToPreview } = cw;
 
   // This architecture lead to recreate the playerReferences each time the component is rendered
   const media = OSDReferences.get(windowId);
@@ -66,6 +71,7 @@ function mapStateToProps(state, {
     },
     currentTime,
     playerReferences,
+    returnToPreview,
   };
 }
 

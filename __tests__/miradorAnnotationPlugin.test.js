@@ -82,7 +82,12 @@ describe('MiradorAnnotation', () => {
 
     expect(mockDispatch)
       .toHaveBeenCalledTimes(1);
-    const dispatchedAction = mockDispatch.mock.calls[0][0];
+    // A thunk (issue #457: the form replaces any open preview) - run against an empty window.
+    const thunkDispatch = vi.fn();
+    mockDispatch.mock.calls[0][0](thunkDispatch, () => ({ companionWindows: {} }));
+    expect(thunkDispatch)
+      .toHaveBeenCalledTimes(1);
+    const dispatchedAction = thunkDispatch.mock.calls[0][0];
     expect(dispatchedAction)
       .toEqual(
         expect.objectContaining({

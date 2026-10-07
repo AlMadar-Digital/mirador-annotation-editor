@@ -6,7 +6,6 @@ import {
   getWindowViewType,
   MiradorMenuButton,
   getVisibleCanvases,
-  addCompanionWindow as addCompanionWindowAction,
   setWindowViewType as setWindowViewTypeAction,
   getCompanionWindowsForContent,
 } from 'dbf-mirador';
@@ -20,6 +19,7 @@ import LocalStorageAdapter from '../annotationAdapter/LocalStorageAdapter';
 import translations from '../locales/locales';
 import HotkeyTooltip from "../hotkeys/HotkeyTooltip";
 import { MAE_POI_SAVING_EVENT } from '../hotkeys/hotkeysEvents';
+import { openAnnotationEditor } from '../annotationPreview';
 
 const StyledDiv = styled('div')(() => ({
   display: 'flex',
@@ -53,12 +53,6 @@ function MiradorAnnotation(
     return () => document.removeEventListener(MAE_POI_SAVING_EVENT, handlePoiSaving);
   }, []);
 
-  /** Open the companion window for annotation */
-  const addCompanionWindow = (content, additionalProps) => {
-    setCurrentCompanionWindowId(targetProps.windowId);
-    dispatch(addCompanionWindowAction(targetProps.windowId, { content, ...additionalProps }));
-  };
-
   useEffect(() => {
   }, [annotationEditCompanionWindowIsOpened]);
   /** */
@@ -74,10 +68,10 @@ function MiradorAnnotation(
   );
   const config = useSelector((state) => state.config);
 
+  // Like editing (issue #457), the new annotation's form replaces any preview beside the map.
   const openCreateAnnotationCompanionWindow = useCallback((e) => {
-    addCompanionWindow('annotationCreation', {
-      position: 'right',
-    });
+    setCurrentCompanionWindowId(targetProps.windowId);
+    dispatch(openAnnotationEditor(targetProps.windowId));
   }, [targetProps.windowId]);
 
   const toggleSingleCanvasDialogOpen = useCallback(() => {
