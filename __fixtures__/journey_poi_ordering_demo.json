@@ -12,7 +12,8 @@
       "body": [
         { "language": "en", "purpose": "identifying", "type": "TextualBody", "value": "Nile Delta Route" },
         { "language": "en", "purpose": "describing", "type": "TextualBody", "value": "A journey through the delta cities, from the Mediterranean coast down toward Cairo." }
-      ]
+      ],
+      "maeData": { "target": {}, "templateType": "journey" }
     },
     {
       "id": "https://example.org/mae-fixtures/poi-alexandria",
@@ -24,7 +25,8 @@
       "body": [
         { "language": "en", "purpose": "identifying", "type": "TextualBody", "value": "Alexandria" },
         { "language": "en", "purpose": "describing", "type": "TextualBody", "value": "First stop: the ancient port city." }
-      ]
+      ],
+      "maeData": { "target": {"drawingState": "{\"currentShape\":null,\"isDrawing\":false,\"shapes\":[{\"fill\":\"#1e88e5\",\"id\":\"poi-alexandria-marker\",\"radius\":12,\"rotation\":0,\"scaleX\":1,\"scaleY\":1,\"stroke\":\"#ffffff\",\"strokeWidth\":2,\"type\":\"poi\",\"x\":122,\"y\":92}]}"}, "templateType": "poi" }
     },
     {
       "id": "https://example.org/mae-fixtures/poi-rosetta",
@@ -35,7 +37,8 @@
       "target": "https://resources.mirador-multi-user.com/f676f10ea711a0a00f14cce0667aec5e1458b5ff/Map-of-the-Nile-River-and-surrounding-areas.json/1786874554449/canvas/1786874554449#xywh=260,140,24,24",
       "body": [
         { "language": "en", "purpose": "identifying", "type": "TextualBody", "value": "Rosetta" }
-      ]
+      ],
+      "maeData": { "target": {"drawingState": "{\"currentShape\":null,\"isDrawing\":false,\"shapes\":[{\"fill\":\"#1e88e5\",\"id\":\"poi-rosetta-marker\",\"radius\":12,\"rotation\":0,\"scaleX\":1,\"scaleY\":1,\"stroke\":\"#ffffff\",\"strokeWidth\":2,\"type\":\"poi\",\"x\":272,\"y\":152}]}"}, "templateType": "poi" }
     },
     {
       "id": "https://example.org/mae-fixtures/poi-damietta",
@@ -46,7 +49,8 @@
       "target": "https://resources.mirador-multi-user.com/f676f10ea711a0a00f14cce0667aec5e1458b5ff/Map-of-the-Nile-River-and-surrounding-areas.json/1786874554449/canvas/1786874554449#xywh=390,120,24,24",
       "body": [
         { "language": "en", "purpose": "identifying", "type": "TextualBody", "value": "Damietta" }
-      ]
+      ],
+      "maeData": { "target": {"drawingState": "{\"currentShape\":null,\"isDrawing\":false,\"shapes\":[{\"fill\":\"#1e88e5\",\"id\":\"poi-damietta-marker\",\"radius\":12,\"rotation\":0,\"scaleX\":1,\"scaleY\":1,\"stroke\":\"#ffffff\",\"strokeWidth\":2,\"type\":\"poi\",\"x\":402,\"y\":132}]}"}, "templateType": "poi" }
     },
     {
       "id": "https://example.org/mae-fixtures/journey-upper-nile",
@@ -58,7 +62,8 @@
       "body": [
         { "language": "en", "purpose": "identifying", "type": "TextualBody", "value": "Upper Nile Route" },
         { "language": "en", "purpose": "describing", "type": "TextualBody", "value": "Heading south along the river toward Nubia." }
-      ]
+      ],
+      "maeData": { "target": {}, "templateType": "journey" }
     },
     {
       "id": "https://example.org/mae-fixtures/poi-luxor",
@@ -69,7 +74,8 @@
       "target": "https://resources.mirador-multi-user.com/f676f10ea711a0a00f14cce0667aec5e1458b5ff/Map-of-the-Nile-River-and-surrounding-areas.json/1786874554449/canvas/1786874554449#xywh=700,520,24,24",
       "body": [
         { "language": "en", "purpose": "identifying", "type": "TextualBody", "value": "Luxor" }
-      ]
+      ],
+      "maeData": { "target": {"drawingState": "{\"currentShape\":null,\"isDrawing\":false,\"shapes\":[{\"fill\":\"#1e88e5\",\"id\":\"poi-luxor-marker\",\"radius\":12,\"rotation\":0,\"scaleX\":1,\"scaleY\":1,\"stroke\":\"#ffffff\",\"strokeWidth\":2,\"type\":\"poi\",\"x\":712,\"y\":532}]}"}, "templateType": "poi" }
     },
     {
       "id": "https://example.org/mae-fixtures/poi-aswan",
@@ -80,7 +86,8 @@
       "target": "https://resources.mirador-multi-user.com/f676f10ea711a0a00f14cce0667aec5e1458b5ff/Map-of-the-Nile-River-and-surrounding-areas.json/1786874554449/canvas/1786874554449#xywh=780,650,24,24",
       "body": [
         { "language": "en", "purpose": "identifying", "type": "TextualBody", "value": "Aswan" }
-      ]
+      ],
+      "maeData": { "target": {"drawingState": "{\"currentShape\":null,\"isDrawing\":false,\"shapes\":[{\"fill\":\"#1e88e5\",\"id\":\"poi-aswan-marker\",\"radius\":12,\"rotation\":0,\"scaleX\":1,\"scaleY\":1,\"stroke\":\"#ffffff\",\"strokeWidth\":2,\"type\":\"poi\",\"x\":792,\"y\":662}]}"}, "templateType": "poi" }
     },
     {
       "id": "https://example.org/mae-fixtures/poi-cairo",
@@ -93,7 +100,8 @@
       "body": [
         { "language": "en", "purpose": "identifying", "type": "TextualBody", "value": "Cairo (standalone POI)" },
         { "language": "en", "purpose": "describing", "type": "TextualBody", "value": "Not part of any journey - drag me into one to test re-parenting." }
-      ]
+      ],
+      "maeData": { "target": {"drawingState": "{\"currentShape\":null,\"isDrawing\":false,\"shapes\":[{\"fill\":\"#1e88e5\",\"id\":\"poi-cairo-marker\",\"radius\":12,\"rotation\":0,\"scaleX\":1,\"scaleY\":1,\"stroke\":\"#ffffff\",\"strokeWidth\":2,\"type\":\"poi\",\"x\":462,\"y\":312}]}"}, "templateType": "poi" }
     },
     {
       "id": "https://example.org/mae-fixtures/poi-giza",
@@ -105,7 +113,8 @@
       "target": "https://resources.mirador-multi-user.com/f676f10ea711a0a00f14cce0667aec5e1458b5ff/Map-of-the-Nile-River-and-surrounding-areas.json/1786874554449/canvas/1786874554449#xywh=420,320,24,24",
       "body": [
         { "language": "en", "purpose": "identifying", "type": "TextualBody", "value": "Giza Pyramids (standalone POI)" }
-      ]
+      ],
+      "maeData": { "target": {"drawingState": "{\"currentShape\":null,\"isDrawing\":false,\"shapes\":[{\"fill\":\"#1e88e5\",\"id\":\"poi-giza-marker\",\"radius\":12,\"rotation\":0,\"scaleX\":1,\"scaleY\":1,\"stroke\":\"#ffffff\",\"strokeWidth\":2,\"type\":\"poi\",\"x\":432,\"y\":332}]}"}, "templateType": "poi" }
     },
     {
       "id": "https://example.org/mae-fixtures/poi-unordered-landmark",
@@ -115,7 +124,8 @@
       "target": "https://resources.mirador-multi-user.com/f676f10ea711a0a00f14cce0667aec5e1458b5ff/Map-of-the-Nile-River-and-surrounding-areas.json/1786874554449/canvas/1786874554449#xywh=900,400,24,24",
       "body": [
         { "language": "en", "purpose": "identifying", "type": "TextualBody", "value": "Unordered Landmark (edge case: no dbf:order at all)" }
-      ]
+      ],
+      "maeData": { "target": {"drawingState": "{\"currentShape\":null,\"isDrawing\":false,\"shapes\":[{\"fill\":\"#1e88e5\",\"id\":\"poi-unordered-landmark-marker\",\"radius\":12,\"rotation\":0,\"scaleX\":1,\"scaleY\":1,\"stroke\":\"#ffffff\",\"strokeWidth\":2,\"type\":\"poi\",\"x\":912,\"y\":412}]}"}, "templateType": "poi" }
     },
     {
       "id": "https://example.org/mae-fixtures/journey-tied-order",
@@ -126,7 +136,8 @@
       "target": "https://resources.mirador-multi-user.com/f676f10ea711a0a00f14cce0667aec5e1458b5ff/Map-of-the-Nile-River-and-surrounding-areas.json/1786874554449/canvas/1786874554449",
       "body": [
         { "language": "en", "purpose": "identifying", "type": "TextualBody", "value": "Tied-Order Journey (edge case: dbf:order 0, same as Nile Delta Route)" }
-      ]
+      ],
+      "maeData": { "target": {}, "templateType": "journey" }
     },
     {
       "id": "https://example.org/mae-fixtures/poi-tied-b",
@@ -137,7 +148,8 @@
       "target": "https://resources.mirador-multi-user.com/f676f10ea711a0a00f14cce0667aec5e1458b5ff/Map-of-the-Nile-River-and-surrounding-areas.json/1786874554449/canvas/1786874554449#xywh=1000,200,24,24",
       "body": [
         { "language": "en", "purpose": "identifying", "type": "TextualBody", "value": "Tied POI B (edge case: journey order 0, tie-break by id vs. Tied POI A)" }
-      ]
+      ],
+      "maeData": { "target": {"drawingState": "{\"currentShape\":null,\"isDrawing\":false,\"shapes\":[{\"fill\":\"#1e88e5\",\"id\":\"poi-tied-b-marker\",\"radius\":12,\"rotation\":0,\"scaleX\":1,\"scaleY\":1,\"stroke\":\"#ffffff\",\"strokeWidth\":2,\"type\":\"poi\",\"x\":1012,\"y\":212}]}"}, "templateType": "poi" }
     },
     {
       "id": "https://example.org/mae-fixtures/poi-tied-a",
@@ -148,7 +160,8 @@
       "target": "https://resources.mirador-multi-user.com/f676f10ea711a0a00f14cce0667aec5e1458b5ff/Map-of-the-Nile-River-and-surrounding-areas.json/1786874554449/canvas/1786874554449#xywh=1050,220,24,24",
       "body": [
         { "language": "en", "purpose": "identifying", "type": "TextualBody", "value": "Tied POI A (edge case: journey order 0, tie-break by id vs. Tied POI B)" }
-      ]
+      ],
+      "maeData": { "target": {"drawingState": "{\"currentShape\":null,\"isDrawing\":false,\"shapes\":[{\"fill\":\"#1e88e5\",\"id\":\"poi-tied-a-marker\",\"radius\":12,\"rotation\":0,\"scaleX\":1,\"scaleY\":1,\"stroke\":\"#ffffff\",\"strokeWidth\":2,\"type\":\"poi\",\"x\":1062,\"y\":232}]}"}, "templateType": "poi" }
     },
     {
       "id": "https://example.org/mae-fixtures/journey-empty",
@@ -159,7 +172,8 @@
       "target": "https://resources.mirador-multi-user.com/f676f10ea711a0a00f14cce0667aec5e1458b5ff/Map-of-the-Nile-River-and-surrounding-areas.json/1786874554449/canvas/1786874554449",
       "body": [
         { "language": "en", "purpose": "identifying", "type": "TextualBody", "value": "Empty Journey (edge case: no pois yet - exercises the \"drag POI here\" drop zone)" }
-      ]
+      ],
+      "maeData": { "target": {}, "templateType": "journey" }
     }
   ]
 }
