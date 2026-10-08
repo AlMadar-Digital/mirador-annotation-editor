@@ -218,7 +218,30 @@ describe('MediaSelectionField', () => {
     await userEvent.click(screen.getByRole('combobox'));
     fireEvent.click(await screen.findByRole('option', { name: 'photo.jpg' }));
     expect(onChange).toHaveBeenCalledWith({
-      id: '42', source: 'upload', thumbnailUrl: 'https://cdn.example/photo-thumb.jpg', title: 'photo.jpg',
+      id: '42', mime: 'image/jpeg', source: 'upload', thumbnailUrl: 'https://cdn.example/photo-thumb.jpg', title: 'photo.jpg',
     });
+  });
+
+  it.each([
+    ['video/mp4', 'MovieIcon'],
+    ['audio/mpeg', 'AudiotrackIcon'],
+    ['application/pdf', 'PictureAsPdfIcon'],
+    ['application/zip', 'InsertDriveFileIcon'],
+    [undefined, 'ImageIcon'],
+  ])('shows an upload with no thumbnail and a %s MIME type as a %s (issue #464)', (mime, icon) => {
+    render(
+      <MediaSelectionField
+        dialogContainer={() => document.body}
+        label="Media"
+        onChange={vi.fn()}
+        onSearchUploads={vi.fn()}
+        t={mockT}
+        value={{
+          id: '7', mime, source: 'upload', thumbnailUrl: null, title: 'file',
+        }}
+      />,
+    );
+    expect(screen.queryByTestId('media-selection-thumbnail')).not.toBeInTheDocument();
+    expect(screen.getByTestId(icon)).toBeInTheDocument();
   });
 });

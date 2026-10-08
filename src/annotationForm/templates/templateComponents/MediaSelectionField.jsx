@@ -30,10 +30,22 @@ const THUMBNAIL_SX = {
   width: 40,
 };
 
+/** The fallback icon for an upload with no thumbnail, by its MIME type (issue #464) - a video,
+ * audio or PDF upload has no image thumbnail by design, so a plain image icon would mislabel
+ * it. An upload of unknown type keeps the image icon. */
+function uploadIcon(mime) {
+  if (!mime) return ImageIcon;
+  if (mime.startsWith('image/')) return ImageIcon;
+  if (mime.startsWith('video/')) return MovieIcon;
+  if (mime.startsWith('audio/')) return AudiotrackIcon;
+  if (mime === 'application/pdf') return PictureAsPdfIcon;
+  return InsertDriveFileIcon;
+}
+
 /** A normalized media option/value's thumbnail image, or (lacking one) a generic icon - a
- * media-item's own mediaType picks a more specific icon (issue #333); upload/iiif-image
- * sources without a thumbnail fall back to a plain image icon, since both sources without a
- * thumbnail are unusual/transient states rather than an expected one like an audio media item. */
+ * media-item's own mediaType picks a more specific icon (issue #333), and so does an upload's
+ * MIME type (issue #464); an iiif-image without a thumbnail falls back to a plain file icon,
+ * an unusual/transient state rather than an expected one like an audio media item. */
 function MediaSelectionThumbnail({ media }) {
   if (media.thumbnailUrl) {
     return (
@@ -47,7 +59,7 @@ function MediaSelectionThumbnail({ media }) {
     );
   }
   const Icon = (media.source === 'media-item' && MEDIA_TYPE_ICONS[media.mediaType])
-    || (media.source === 'upload' ? ImageIcon : InsertDriveFileIcon);
+    || (media.source === 'upload' ? uploadIcon(media.mime) : InsertDriveFileIcon);
   return (
     <Box
       sx={{
@@ -67,6 +79,7 @@ function MediaSelectionThumbnail({ media }) {
 MediaSelectionThumbnail.propTypes = {
   media: PropTypes.shape({
     mediaType: PropTypes.string,
+    mime: PropTypes.string,
     source: PropTypes.string,
     thumbnailUrl: PropTypes.string,
   }).isRequired,
@@ -77,8 +90,8 @@ MediaSelectionThumbnail.propTypes = {
  * is its documentId, an iiif-image's `id` is its documentId, and an upload's `id` is its
  * numeric Strapi file id coerced to a string (uploads have no documentId - see the `upload`
  * source on `shared.media-selection`, a plain Media Library file relation, issue #391).
- * `mediaType` is only ever populated for a media-item result (used for its icon fallback
- * above) - upload/iiif-image results leave it undefined.
+ * `mediaType` is only ever populated for a media-item result, and `mime` for an upload one
+ * (both used for the icon fallback above, issue #464).
  *
  * Key order here is display/default-selection order (IIIF Image, Media Library, Media Item -
  * issue #391's own spec order) - `Object.keys` on an object with only string keys preserves
@@ -95,7 +108,11 @@ const SOURCE_CONFIG = {
   },
   upload: {
     normalize: (raw) => ({
-      id: String(raw.id), source: 'upload', thumbnailUrl: raw.thumbnailUrl ?? null, title: raw.name,
+      id: String(raw.id),
+      mime: raw.mime ?? null,
+      source: 'upload',
+      thumbnailUrl: raw.thumbnailUrl ?? null,
+      title: raw.name,
     }),
     titleKey: 'poi_media_source_upload',
   },
@@ -303,6 +320,7 @@ MediaSelectionField.propTypes = {
   value: PropTypes.shape({
     id: PropTypes.string.isRequired,
     mediaType: PropTypes.string,
+    mime: PropTypes.string,
     source: PropTypes.oneOf(['upload', 'iiif-image', 'media-item']).isRequired,
     thumbnailUrl: PropTypes.string,
     title: PropTypes.string,
