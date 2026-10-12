@@ -12,7 +12,7 @@ describe('withMovedPoiTarget', () => {
         drawingState: JSON.stringify({
           currentShape: null,
           shapes: [{
-            id: 'shape-1', radius: 12, type: 'poi', x: 10, y: 20,
+            id: 'shape-1', type: 'poi', x: 10, y: 20,
           }],
         }),
         svg: '<svg>old spot</svg>',
@@ -36,7 +36,7 @@ describe('withMovedPoiTarget', () => {
     const { currentShape, shapes } = drawingStateOf(moved);
 
     expect(shapes).toEqual([{
-      id: 'shape-1', radius: 12, type: 'poi', x: 300, y: 150,
+      id: 'shape-1', type: 'poi', x: 300, y: 150,
     }]);
     expect(currentShape).toEqual(shapes[0]);
     expect(moved.maeData.target.svg).toBeUndefined();

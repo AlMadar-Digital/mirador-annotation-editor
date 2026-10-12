@@ -7,7 +7,7 @@ import { Stage } from 'react-konva';
 import { v4 as uuidv4 } from 'uuid';
 import ParentComponent from './KonvaDrawing/shapes/ParentComponent';
 import {
-  getPoiMarkerRadius, KONVA_MODE, OVERLAY_TOOL, POI_MARKER_STYLE, SHAPES_TOOL,
+  KONVA_MODE, OVERLAY_TOOL, POI_MARKER_STYLE, SHAPES_TOOL,
 } from './KonvaDrawing/KonvaUtils';
 
 /** All the stuff to draw on the canvas */
@@ -325,10 +325,6 @@ export default function AnnotationDrawing(
           shape = {
             ...POI_MARKER_STYLE,
             id: uuidv4(),
-            radius: getPoiMarkerRadius(
-              playerReferences.getMediaTrueWidth(),
-              playerReferences.getMediaTrueHeight(),
-            ),
             rotation: 0,
             scaleX: 1,
             scaleY: 1,

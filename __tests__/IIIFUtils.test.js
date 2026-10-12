@@ -495,11 +495,10 @@ describe('convertIIIFAnnoToMaeData', () => {
       const result = convertIIIFAnnoToMaeData(anno);
       const drawingState = JSON.parse(result.maeData.target.drawingState);
 
-      // Stubbed bbox above is { height: 40, width: 30, x: 5, y: 6 } - center (5+15, 6+20),
-      // radius = max(30, 40) / 2.
+      // Stubbed bbox above is { height: 40, width: 30, x: 5, y: 6 } - center (5+15, 6+20).
       expect(drawingState.shapes).toHaveLength(1);
       expect(drawingState.shapes[0]).toMatchObject({
-        radius: 20, type: SHAPES_TOOL.POI, x: 20, y: 26,
+        type: SHAPES_TOOL.POI, x: 20, y: 26,
       });
       expect(drawingState.currentShape).toMatchObject({ type: SHAPES_TOOL.POI });
     });

@@ -51,7 +51,6 @@ vi.mock('../src/annotationForm/templates/templateComponents/RichTextField', () =
 const poiShape = () => ({
   fill: '#e53935',
   id: 'shape-1',
-  radius: 10,
   rotation: 0,
   scaleX: 1,
   scaleY: 1,
@@ -67,7 +66,6 @@ const circleShape = () => ({
   fill: TARGET_TOOL_STATE.fillColor,
   fillColor: TARGET_TOOL_STATE.fillColor,
   id: 'shape-1',
-  radius: 5,
   rotation: 0,
   scaleX: 1,
   scaleY: 1,

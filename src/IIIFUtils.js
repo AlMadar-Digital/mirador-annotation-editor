@@ -2,7 +2,6 @@ import { v4 as uuidv4 } from 'uuid';
 
 import {
   getKonvaAsDataURL,
-  getPoiMarkerRadius,
   getSvg,
   SHAPES_TOOL,
   OVERLAY_TOOL,
@@ -464,7 +463,7 @@ const convertFragmentSelectorToMae = (selector) => {
  * a Konva Circle - as a generic `<path>` built from arc/line-to draw calls, exactly like every
  * other shape type. There is no `<circle>` tag to find in the real, non-mocked output; the
  * bounding box is the only reliable signal, and a circle's bbox is always a square centered on
- * it, so `radius = max(width, height) / 2` and center = bbox center recover it exactly.
+ * it, so its center = bbox center recovers the point exactly.
  *
  * Colors come from POI_MARKER_STYLE, the same fixed, non-configurable appearance PoiNode itself
  * uses - not from the SVG, since a POI marker carries no size/style knobs to round-trip.
@@ -477,7 +476,6 @@ const convertPoiSvgSelectorToMae = (svgDoc, svgValue) => {
   const currentShape = {
     fill: POI_MARKER_STYLE.fill,
     id: uuidv4(),
-    radius: Math.max(xywh.width, xywh.height) / 2,
     rotation: 0,
     scaleX: 1,
     scaleY: 1,
@@ -509,10 +507,9 @@ const convertPoiSvgSelectorToMae = (svgDoc, svgValue) => {
 /**
  * Reconstructs a POI/NestedMap point's `maeData.target` from a real IIIF PointSelector
  * (the format written by getIIIFTargetAsPointSelector going forward). Unlike the legacy
- * convertPoiSvgSelectorToMae below, there is no traced marker to measure, so the radius can't be
- * recovered - it falls back to getPoiMarkerRadius's own no-media-dimensions default. This is
- * harmless: the radius only affects this editor's own Konva marker size, not the point's saved
- * position, and a renderer (e.g. map-mirador) draws its own icon independently of it.
+ * convertPoiSvgSelectorToMae below, there is no traced marker to measure - and none is needed:
+ * PoiNode draws its cross at a constant on-screen size, and a renderer (e.g. map-mirador) draws
+ * its own icon independently of the editor's marker.
  * @param {{ type: string, x: number, y: number }} selector
  * @returns {object} maeTarget
  */
@@ -520,7 +517,6 @@ const convertPointSelectorToMae = (selector) => {
   const currentShape = {
     ...POI_MARKER_STYLE,
     id: uuidv4(),
-    radius: getPoiMarkerRadius(),
     rotation: 0,
     scaleX: 1,
     scaleY: 1,
