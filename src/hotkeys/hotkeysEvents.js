@@ -12,3 +12,9 @@ export const MAE_ANNOTATION_EMPTY_EVENT = 'mae-annotation-empty';
  * toolbar's "create annotation" button can show a spinner even though it lives in a separate
  * companion window/plugin tree with no shared component state. */
 export const MAE_POI_SAVING_EVENT = 'mae-poi-saving';
+
+/** Elements where keystrokes belong to the field being typed in, never to a hotkey */
+const IGNORED_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
+
+/** Whether a keydown's target is a field the user is typing in */
+export const isEditableTarget = (el) => IGNORED_TAGS.has(el?.tagName) || !!el?.isContentEditable;

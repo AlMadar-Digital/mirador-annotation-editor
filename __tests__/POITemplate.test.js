@@ -376,6 +376,58 @@ describe('POITemplate (render)', () => {
     expect(saveAnnotation).toHaveBeenCalled();
   });
 
+  /** A saved POI as StrapiAnnotationAdapter hands it over: no maeData, a PointSelector target */
+  const strapiLoadedPoi = () => convertIIIFAnnoToMaeData({
+    body: [
+      {
+        language: 'en', purpose: 'identifying', type: 'TextualBody', value: 'Dome of the Rocks',
+      },
+    ],
+    'dbf:kind': 'POI',
+    id: 'canvas1/annotation/1',
+    motivation: 'identifying',
+    target: { selector: { type: 'PointSelector', x: 100, y: 200 }, source: 'canvas1' },
+  });
+
+  it('keeps the POI location when Backspace is typed in the title (AlMadar-Digital/platform#493)', async () => {
+    const saveAnnotation = vi.fn();
+    renderPoiTemplate(strapiLoadedPoi(), saveAnnotation);
+    const title = screen.getByLabelText('poi_title');
+
+    fireEvent.keyDown(title, { key: 'Backspace' });
+    fireEvent.change(title, { target: { value: 'Dome of the Rock' } });
+    // TargetPointInput forwards shape changes through a setTimeout
+    await new Promise((resolve) => { setTimeout(resolve, 0); });
+    fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+    expect(screen.queryByText('poi_target_must_be_point')).not.toBeInTheDocument();
+    expect(saveAnnotation).toHaveBeenCalled();
+  });
+
+  it('keeps the POI location when Backspace is typed in the description (AlMadar-Digital/platform#493)', async () => {
+    const saveAnnotation = vi.fn();
+    renderPoiTemplate(strapiLoadedPoi(), saveAnnotation);
+
+    fireEvent.keyDown(screen.getByTestId('poi-description'), { key: 'Backspace' });
+    await new Promise((resolve) => { setTimeout(resolve, 0); });
+    fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+    expect(screen.queryByText('poi_target_must_be_point')).not.toBeInTheDocument();
+    expect(saveAnnotation).toHaveBeenCalled();
+  });
+
+  it('still deletes the selected marker on Backspace outside a text field', async () => {
+    const saveAnnotation = vi.fn();
+    renderPoiTemplate(strapiLoadedPoi(), saveAnnotation);
+
+    fireEvent.keyDown(document.body, { key: 'Backspace' });
+    await new Promise((resolve) => { setTimeout(resolve, 0); });
+    fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+    expect(screen.getByText('poi_target_must_be_point')).toBeInTheDocument();
+    expect(saveAnnotation).not.toHaveBeenCalled();
+  });
+
   it('does not save and shows an error when a configured locale is missing its title, even with a valid target (issue #377 review comment)', () => {
     const saveAnnotation = vi.fn();
     renderPoiTemplate({
