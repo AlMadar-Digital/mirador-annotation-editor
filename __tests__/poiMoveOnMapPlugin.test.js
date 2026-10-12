@@ -53,9 +53,7 @@ const renderLayer = (props = {}) => {
   const pois = [pointPoi('poi-1', 10, 20)].map((poi) => ({ poi, point: { x: 10, y: 20 } }));
   render(
     <PoiMoveOnMap
-      canvasHeight={800}
       canvasId={CANVAS}
-      canvasWidth={1000}
       isFormOpen={false}
       pois={pois}
       receiveAnnotation={receiveAnnotation}

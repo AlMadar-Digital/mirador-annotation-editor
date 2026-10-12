@@ -15,9 +15,7 @@ import {
   receiveAnnotation as receiveAnnotationAction,
 } from 'dbf-mirador';
 import PoiNode from '../annotationForm/AnnotationFormOverlay/KonvaDrawing/shapes/PoiNode';
-import {
-  getPoiMarkerRadius, POI_MARKER_STYLE,
-} from '../annotationForm/AnnotationFormOverlay/KonvaDrawing/KonvaUtils';
+import { POI_MARKER_STYLE } from '../annotationForm/AnnotationFormOverlay/KonvaDrawing/KonvaUtils';
 import { POINT_INPUT_MODE } from '../annotationForm/templates/templateComponents/TargetPointInput';
 import { saveAnnotationInStorageAdapter } from '../annotationForm/AnnotationFormUtils';
 import { getPoiPathPoint, refreshJourneyPath } from '../journeyPath';
@@ -59,8 +57,6 @@ const getCanvasLayout = (viewer) => {
  */
 export function PoiMoveOnMap({
   canvasId = null,
-  canvasHeight = 0,
-  canvasWidth = 0,
   isFormOpen,
   pois,
   receiveAnnotation,
@@ -149,7 +145,6 @@ export function PoiMoveOnMap({
   );
 
   const layout = isTarget ? getCanvasLayout(viewer) : null;
-  const radius = getPoiMarkerRadius(canvasWidth, canvasHeight);
 
   /** Zooms the map on wheel as if the markers' layer wasn't there - see AnnotationDrawing. */
   const handleWheel = (e) => {
@@ -183,7 +178,7 @@ export function PoiMoveOnMap({
                 key={poi.id}
                 onShapeClick={noop}
                 shape={{
-                  ...POI_MARKER_STYLE, id: poi.id, radius, x: point.x, y: point.y,
+                  ...POI_MARKER_STYLE, id: poi.id, x: point.x, y: point.y,
                 }}
               />
             ))}
@@ -196,17 +191,13 @@ export function PoiMoveOnMap({
 }
 
 PoiMoveOnMap.defaultProps = {
-  canvasHeight: 0,
   canvasId: null,
-  canvasWidth: 0,
   storageAdapter: null,
   viewer: null,
 };
 
 PoiMoveOnMap.propTypes = {
-  canvasHeight: PropTypes.number,
   canvasId: PropTypes.string,
-  canvasWidth: PropTypes.number,
   isFormOpen: PropTypes.bool.isRequired,
   pois: PropTypes.arrayOf(PropTypes.shape({
     // eslint-disable-next-line react/forbid-prop-types
@@ -245,9 +236,7 @@ function mapStateToProps(state, { windowId }) {
   const [canvas] = getVisibleCanvases(state, { windowId });
   const { annotation = {} } = state.config;
   return {
-    canvasHeight: canvas?.getHeight?.() ?? 0,
     canvasId: canvas?.id ?? null,
-    canvasWidth: canvas?.getWidth?.() ?? 0,
     isFormOpen: Object.keys(
       getCompanionWindowsForContent(state, { content: 'annotationCreation', windowId }),
     ).length > 0,

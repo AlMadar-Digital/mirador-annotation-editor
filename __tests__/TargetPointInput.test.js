@@ -23,7 +23,6 @@ vi.mock('../src/annotationForm/AnnotationFormOverlay/AnnotationDrawing', () => (
 const poiShape = () => ({
   fill: '#e53935',
   id: 'shape-1',
-  radius: 10,
   rotation: 0,
   scaleX: 1,
   scaleY: 1,

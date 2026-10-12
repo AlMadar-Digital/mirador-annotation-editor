@@ -235,21 +235,6 @@ export const POI_MARKER_STYLE = {
   strokeWidth: 2,
 };
 
-/**
- * Radius for a newly-placed POI marker, proportional to the media's true size so it stays
- * visible on both small and very large images, clamped to a sane range.
- * @param {number} mediaTrueWidth
- * @param {number} mediaTrueHeight
- * @returns {number}
- */
-export function getPoiMarkerRadius(mediaTrueWidth, mediaTrueHeight) {
-  const smallerDimension = Math.min(mediaTrueWidth, mediaTrueHeight);
-  // Math.max/Math.min propagate NaN, so an unset/zero media dimension (e.g. clicked before the
-  // media has fully loaded) would otherwise silently produce an invisible, NaN-radius marker.
-  if (!Number.isFinite(smallerDimension) || smallerDimension <= 0) return 10;
-  return Math.min(40, Math.max(6, smallerDimension * 0.015));
-}
-
 /** Check if the active tool is a shape tool */
 export function isShapesTool(activeTool) {
   // Find if active tool in the list of overlay tools. I want a boolean in return
