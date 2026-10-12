@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Grid, TextField } from '@mui/material';
+import { Grid, TextField, Tooltip } from '@mui/material';
 import Typography from '@mui/material/Typography';
 import PropTypes from 'prop-types';
 import { useSelector } from 'react-redux';
@@ -499,16 +499,18 @@ export default function POITemplate(
       </Grid>
       <Grid container direction="row" spacing={2}>
         <Grid size={6}>
-          <TextField
-            fullWidth
-            error={latitudeError}
-            label={t('poi_latitude')}
-            slotProps={{ htmlInput: { inputMode: 'decimal' } }}
-            type="text"
-            value={latitudeInput}
-            variant="outlined"
-            onChange={updateLatitude}
-          />
+          <Tooltip describeChild placement="top" title={t('poi_latitude_tooltip')}>
+            <TextField
+              fullWidth
+              error={latitudeError}
+              label={t('poi_latitude')}
+              slotProps={{ htmlInput: { inputMode: 'decimal' } }}
+              type="text"
+              value={latitudeInput}
+              variant="outlined"
+              onChange={updateLatitude}
+            />
+          </Tooltip>
           {latitudeError && (
             <Typography color="error" variant="caption">
               {t('poi_latitude_invalid')}
@@ -516,16 +518,18 @@ export default function POITemplate(
           )}
         </Grid>
         <Grid size={6}>
-          <TextField
-            fullWidth
-            error={longitudeError}
-            label={t('poi_longitude')}
-            slotProps={{ htmlInput: { inputMode: 'decimal' } }}
-            type="text"
-            value={longitudeInput}
-            variant="outlined"
-            onChange={updateLongitude}
-          />
+          <Tooltip describeChild placement="top" title={t('poi_longitude_tooltip')}>
+            <TextField
+              fullWidth
+              error={longitudeError}
+              label={t('poi_longitude')}
+              slotProps={{ htmlInput: { inputMode: 'decimal' } }}
+              type="text"
+              value={longitudeInput}
+              variant="outlined"
+              onChange={updateLongitude}
+            />
+          </Tooltip>
           {longitudeError && (
             <Typography color="error" variant="caption">
               {t('poi_longitude_invalid')}

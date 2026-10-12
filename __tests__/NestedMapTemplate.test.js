@@ -274,6 +274,21 @@ describe('NestedMapTemplate (render)', () => {
     expect(saveAnnotation).toHaveBeenCalled();
   });
 
+  // platform#488: editors must know the coordinates are WGS 84 decimal degrees.
+  it('shows a WGS 84 tooltip on the latitude and longitude fields', async () => {
+    renderNestedMapTemplate(baseNestedMapState(), vi.fn());
+
+    /** Hover a coordinate field and check its own tooltip opens, then closes again. */
+    const expectTooltip = async (axis) => {
+      await userEvent.hover(screen.getByLabelText(`poi_${axis}`));
+      expect(await screen.findByRole('tooltip')).toHaveTextContent(`poi_${axis}_tooltip`);
+      await userEvent.unhover(screen.getByLabelText(`poi_${axis}`));
+      await waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument());
+    };
+    await expectTooltip('latitude');
+    await expectTooltip('longitude');
+  });
+
   it('lets the editor type a latitude and longitude, saved as root-level dbf:latitude/dbf:longitude', () => {
     const saveAnnotation = vi.fn();
     renderNestedMapTemplate(baseNestedMapState(), saveAnnotation);
