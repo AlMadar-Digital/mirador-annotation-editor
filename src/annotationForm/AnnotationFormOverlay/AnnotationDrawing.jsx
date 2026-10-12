@@ -6,6 +6,7 @@ import PropTypes from 'prop-types';
 import { Stage } from 'react-konva';
 import { v4 as uuidv4 } from 'uuid';
 import ParentComponent from './KonvaDrawing/shapes/ParentComponent';
+import { isEditableTarget } from '../../hotkeys/hotkeysEvents';
 import {
   KONVA_MODE, OVERLAY_TOOL, POI_MARKER_STYLE, SHAPES_TOOL,
 } from './KonvaDrawing/KonvaUtils';
@@ -73,6 +74,9 @@ export default function AnnotationDrawing(
 
   /** */
   const handleKeyPress = (e) => {
+    // Registered on `window`, so it also sees keys typed in the form's own fields: a Backspace
+    // correcting a POI's title must not delete its marker (AlMadar-Digital/platform#493).
+    if (isEditableTarget(e.target)) return;
     e.stopPropagation();
 
     if (!drawingState.currentShape) {
