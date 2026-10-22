@@ -38,6 +38,49 @@ describe('MediaSelectionField', () => {
     expect(screen.getByText('Dome of the Rock tour')).toBeInTheDocument();
   });
 
+  it('shows the current value\'s caption, credit and rights statement under its title (issue #520)', () => {
+    render(
+      <MediaSelectionField
+        dialogContainer={() => document.body}
+        label="Media"
+        onChange={vi.fn()}
+        onSearchIiifImages={vi.fn()}
+        t={mockT}
+        value={{
+          caption: 'The world map of al-Idrisi',
+          credit: 'Courtesy of the Bodleian Libraries',
+          id: 'iiif-1',
+          rightsStatement: { label: 'In Copyright', uri: 'https://rightsstatements.org/vocab/InC/1.0/' },
+          source: 'iiif-image',
+          thumbnailUrl: null,
+          title: 'Tabula Rogeriana',
+        }}
+      />,
+    );
+    expect(screen.getByTestId('media-selection-caption')).toHaveTextContent('The world map of al-Idrisi');
+    expect(screen.getByTestId('media-selection-credit')).toHaveTextContent('Courtesy of the Bodleian Libraries');
+    expect(screen.getByRole('link', { name: 'In Copyright' }))
+      .toHaveAttribute('href', 'https://rightsstatements.org/vocab/InC/1.0/');
+  });
+
+  it('shows no caption, credit or rights line when the value has none', () => {
+    render(
+      <MediaSelectionField
+        dialogContainer={() => document.body}
+        label="Media"
+        onChange={vi.fn()}
+        onSearchMediaItems={vi.fn()}
+        t={mockT}
+        value={{
+          id: 'media-1', mediaType: 'audio', source: 'media-item', thumbnailUrl: null, title: 'Dome of the Rock tour',
+        }}
+      />,
+    );
+    expect(screen.queryByTestId('media-selection-caption')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('media-selection-credit')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('media-selection-rights')).not.toBeInTheDocument();
+  });
+
   it('searches the media-item source immediately when opened, and lists normalized results', async () => {
     const onSearchMediaItems = vi.fn().mockResolvedValue([domeOfTheRockMediaItem, alAqsaMediaItem]);
     render(
