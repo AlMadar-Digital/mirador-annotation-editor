@@ -3,7 +3,7 @@ import React, {
 } from 'react';
 import PropTypes from 'prop-types';
 import {
-  Autocomplete, Box, CircularProgress, TextField, ToggleButton, ToggleButtonGroup, Typography,
+  Autocomplete, Box, CircularProgress, Link, TextField, ToggleButton, ToggleButtonGroup, Typography,
 } from '@mui/material';
 import AudiotrackIcon from '@mui/icons-material/Audiotrack';
 import ImageIcon from '@mui/icons-material/Image';
@@ -297,12 +297,45 @@ export function MediaSelectionField({
       />
       {value && (
         // A small preview of the currently attached media, right under the field - lets staff
-        // confirm what's selected without leaving the editing companion window (issue #391).
+        // confirm what's selected without leaving the editing companion window (issue #391),
+        // with the caption, credit and rights statement the site shows with it (issue #520),
+        // when the backend sends them. Read-only: they're edited in the CMS, not here.
         <Box sx={{ alignItems: 'center', display: 'flex', gap: 1 }}>
           <MediaSelectionThumbnail media={value} />
-          <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {value.title}
-          </Typography>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {value.title}
+            </Typography>
+            {value.caption && (
+              <Typography variant="caption" component="p" data-testid="media-selection-caption">
+                {value.caption}
+              </Typography>
+            )}
+            {value.credit && (
+              <Typography
+                variant="caption"
+                component="p"
+                color="text.secondary"
+                data-testid="media-selection-credit"
+              >
+                {value.credit}
+              </Typography>
+            )}
+            {(value.rightsStatement?.label || value.rightsStatement?.uri) && (
+              <Typography
+                variant="caption"
+                component="p"
+                color="text.secondary"
+                data-testid="media-selection-rights"
+              >
+                {value.rightsStatement.uri ? (
+                  <Link href={value.rightsStatement.uri} target="_blank" rel="noopener noreferrer">
+                    {value.rightsStatement.label || value.rightsStatement.uri}
+                  </Link>
+                ) : value.rightsStatement.label}
+              </Typography>
+            )}
+          </Box>
         </Box>
       )}
     </Box>
@@ -318,9 +351,15 @@ MediaSelectionField.propTypes = {
   onSearchUploads: PropTypes.func,
   t: PropTypes.func.isRequired,
   value: PropTypes.shape({
+    caption: PropTypes.string,
+    credit: PropTypes.string,
     id: PropTypes.string.isRequired,
     mediaType: PropTypes.string,
     mime: PropTypes.string,
+    rightsStatement: PropTypes.shape({
+      label: PropTypes.string,
+      uri: PropTypes.string,
+    }),
     source: PropTypes.oneOf(['upload', 'iiif-image', 'media-item']).isRequired,
     thumbnailUrl: PropTypes.string,
     title: PropTypes.string,
