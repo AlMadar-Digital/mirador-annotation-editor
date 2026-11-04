@@ -87,15 +87,36 @@ describe('LocalizedMediaSelectionField caption/credit override (issue #520)', ()
     expect(screen.queryByText('poi_media_override')).not.toBeInTheDocument();
   });
 
-  it('shows both languages for the same image, with the image\'s own text as placeholders', () => {
+  it('shows only the English fields on the English tab, with the image\'s own text as placeholders', () => {
     const media = iiifImage({ captionEn: 'The world map', creditAr: 'بإذن', creditEn: 'Courtesy of the Bodleian' });
     renderField({ mediaAr: media, mediaEn: media });
 
     expect(screen.getByTestId('media-override-captionEn')).toHaveAttribute('placeholder', 'The world map');
+    expect(screen.getByTestId('media-override-creditEn')).toHaveAttribute('placeholder', 'Courtesy of the Bodleian');
+    expect(screen.queryByTestId('media-override-captionAr')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('media-override-creditAr')).not.toBeInTheDocument();
+  });
+
+  it('shows only the Arabic fields on the Arabic tab, saying when they fall back to English', () => {
+    const media = iiifImage({ captionEn: 'The world map', creditAr: 'بإذن', creditEn: 'Courtesy of the Bodleian' });
+    renderField({ activeLocaleIsRtl: true, mediaAr: media, mediaEn: media });
+
+    expect(screen.queryByTestId('media-override-captionEn')).not.toBeInTheDocument();
     expect(screen.getByTestId('media-override-creditAr')).toHaveAttribute('placeholder', 'بإذن');
     // No Arabic caption on the image: the Arabic page falls back to the English one.
     expect(screen.getByTestId('media-override-captionAr')).toHaveAttribute('placeholder', 'The world map');
     expect(screen.getByText('poi_media_override_english_fallback')).toBeInTheDocument();
+  });
+
+  it('keeps the English override when the Arabic one is typed for the same image', () => {
+    const media = iiifImage({}, { captionEn: 'Detail of Sicily' });
+    const last = renderField({ activeLocaleIsRtl: true, mediaAr: media, mediaEn: media });
+
+    fireEvent.change(screen.getByTestId('media-override-captionAr'), { target: { value: 'تفصيل صقلية' } });
+
+    const override = { ...EMPTY_MEDIA_TEXTS, captionAr: 'تفصيل صقلية', captionEn: 'Detail of Sicily' };
+    expect(last.en).toMatchObject({ caption: 'Detail of Sicily', override });
+    expect(last.ar).toMatchObject({ caption: 'تفصيل صقلية', override });
   });
 
   it('starts collapsed when the POI does not override the image', () => {
