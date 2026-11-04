@@ -98,11 +98,19 @@ MediaSelectionThumbnail.propTypes = {
  * insertion order, which both the source-selector's button order and the default active
  * source (the first available one, absent a current value - see availableSources below) rely
  * on. */
+/** A search result's own caption/credit (issue #520), when the backend sends them - what the
+ * override fields show as placeholders for a freshly picked media. */
+const inheritedTexts = (raw) => (raw.inherited ? { inherited: raw.inherited } : {});
+
 /* eslint-disable sort-keys -- key order is meaningful here (display/default order) */
 const SOURCE_CONFIG = {
   'iiif-image': {
     normalize: (raw) => ({
-      id: raw.documentId, source: 'iiif-image', thumbnailUrl: raw.thumbnailUrl ?? null, title: raw.displayTitle,
+      id: raw.documentId,
+      source: 'iiif-image',
+      thumbnailUrl: raw.thumbnailUrl ?? null,
+      title: raw.displayTitle,
+      ...inheritedTexts(raw),
     }),
     titleKey: 'poi_media_source_iiif_image',
   },
@@ -113,6 +121,7 @@ const SOURCE_CONFIG = {
       source: 'upload',
       thumbnailUrl: raw.thumbnailUrl ?? null,
       title: raw.name,
+      ...inheritedTexts(raw),
     }),
     titleKey: 'poi_media_source_upload',
   },
@@ -123,6 +132,7 @@ const SOURCE_CONFIG = {
       source: 'media-item',
       thumbnailUrl: raw.thumbnailUrl ?? null,
       title: raw.titleEn,
+      ...inheritedTexts(raw),
     }),
     titleKey: 'poi_media_source_media_item',
   },
@@ -299,7 +309,8 @@ export function MediaSelectionField({
         // A small preview of the currently attached media, right under the field - lets staff
         // confirm what's selected without leaving the editing companion window (issue #391),
         // with the caption, credit and rights statement the site shows with it (issue #520),
-        // when the backend sends them. Read-only: they're edited in the CMS, not here.
+        // when the backend sends them - kept up to date with the override typed below it (see
+        // LocalizedMediaSelectionField).
         <Box sx={{ alignItems: 'center', display: 'flex', gap: 1 }}>
           <MediaSelectionThumbnail media={value} />
           <Box sx={{ minWidth: 0 }}>

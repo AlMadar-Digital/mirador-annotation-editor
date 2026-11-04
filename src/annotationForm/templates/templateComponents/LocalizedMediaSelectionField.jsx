@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { Checkbox, FormControlLabel } from '@mui/material';
 import { MediaSelectionField } from './MediaSelectionField';
+import { MediaTextsOverrideField } from './MediaTextsOverrideField';
+import { EMPTY_MEDIA_TEXTS, hasMediaTexts, withMediaOverride } from './mediaTexts';
 
 /** Two `dbf:media*` selections (e.g. `id`+`source`) refer to the same underlying media - used
  * only to pick the "Keep same media" checkbox's initial state from an already-loaded
@@ -39,6 +41,11 @@ const sameMedia = (a, b) => {
  * `mediaEn`/`mediaAr` - the currently attached selections, already in MediaSelectionField's
  *   normalized shape, or null.
  * Every other prop passes straight through to the shown MediaSelectionField.
+ *
+ * Under the field, MediaTextsOverrideField edits the caption and credit typed for the POI's
+ * image (issue #520), carried on the media as its `override`. The override belongs to the image:
+ * while "Keep same media" is checked it shows both languages' fields and is written to both
+ * media, else it shows the active language's only. Picking another media starts it empty.
  */
 export function LocalizedMediaSelectionField({
   activeLocaleIsRtl,
@@ -56,33 +63,52 @@ export function LocalizedMediaSelectionField({
   t,
 }) {
   const [keepSame, setKeepSame] = useState(() => sameMedia(mediaEn, mediaAr));
+  const activeMedia = activeLocaleIsRtl ? mediaAr : mediaEn;
+
+  /** `media` with `override`, its preview caption/credit computed for the slot's language. */
+  const forEn = (media, override = media?.override) => withMediaOverride(media, override, 'En');
+  const forAr = (media, override = media?.override) => withMediaOverride(media, override, 'Ar');
 
   /** Update the active locale's media, mirroring it into the other locale too while "keep same
-   * media" is checked. */
-  const handleActiveChange = (media) => {
+   * media" is checked. Another media starts with an empty override; picking the same one again
+   * changes nothing. */
+  const handleActiveChange = (picked) => {
+    if (picked && sameMedia(picked, activeMedia)) return;
+    const override = picked && hasMediaTexts(picked) ? EMPTY_MEDIA_TEXTS : undefined;
     if (activeLocaleIsRtl) {
-      onChangeAr(media);
+      onChangeAr(forAr(picked, override));
       if (keepSame) {
-        onChangeEn(media);
+        onChangeEn(forEn(picked, override));
       }
     } else {
-      onChangeEn(media);
+      onChangeEn(forEn(picked, override));
       if (keepSame) {
-        onChangeAr(media);
+        onChangeAr(forAr(picked, override));
       }
     }
   };
 
+  /** Update the image's override - on both media while "keep same media" is checked (the same
+   * image), else on the active locale's only. */
+  const handleOverrideChange = (override) => {
+    if (keepSame || !activeLocaleIsRtl) {
+      onChangeEn(forEn(mediaEn, override));
+    }
+    if (keepSame || activeLocaleIsRtl) {
+      onChangeAr(forAr(mediaAr, override));
+    }
+  };
+
   /** Toggle "keep same media" - checking it immediately syncs the other (hidden) locale to
-   * whichever one is currently shown. */
+   * whichever one is currently shown, override included (it's the same image now). */
   const handleKeepSameChange = (event) => {
     const { checked } = event.target;
     setKeepSame(checked);
     if (checked) {
       if (activeLocaleIsRtl) {
-        onChangeEn(mediaAr);
+        onChangeEn(forEn(mediaAr));
       } else {
-        onChangeAr(mediaEn);
+        onChangeAr(forAr(mediaEn));
       }
     }
   };
@@ -103,8 +129,18 @@ export function LocalizedMediaSelectionField({
         onSearchMediaItems={onSearchMediaItems}
         onSearchUploads={onSearchUploads}
         t={t}
-        value={activeLocaleIsRtl ? mediaAr : mediaEn}
+        value={activeMedia}
       />
+      {hasMediaTexts(activeMedia) && (
+        <MediaTextsOverrideField
+          // Remounts per image, so its expanded state follows the image's own override.
+          key={`${activeMedia.source}:${activeMedia.id}`}
+          languages={keepSame ? ['En', 'Ar'] : [activeLocaleIsRtl ? 'Ar' : 'En']}
+          media={activeMedia}
+          onChange={handleOverrideChange}
+          t={t}
+        />
+      )}
       <FormControlLabel
         control={<Checkbox checked={keepSame} onChange={handleKeepSameChange} />}
         label={keepSameLabel}
