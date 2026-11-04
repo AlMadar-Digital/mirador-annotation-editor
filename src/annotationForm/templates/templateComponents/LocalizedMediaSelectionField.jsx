@@ -43,9 +43,10 @@ const sameMedia = (a, b) => {
  * Every other prop passes straight through to the shown MediaSelectionField.
  *
  * Under the field, MediaTextsOverrideField edits the caption and credit typed for the POI's
- * image (issue #520), carried on the media as its `override`. The override belongs to the image:
- * while "Keep same media" is checked it shows both languages' fields and is written to both
- * media, else it shows the active language's only. Picking another media starts it empty.
+ * image (issue #520), carried on the media as its `override`. Like the title and description
+ * fields, it shows the active language's fields only. The override belongs to the image: while
+ * "Keep same media" is checked it is written to both media. Picking another media starts it
+ * empty.
  */
 export function LocalizedMediaSelectionField({
   activeLocaleIsRtl,
@@ -135,7 +136,7 @@ export function LocalizedMediaSelectionField({
         <MediaTextsOverrideField
           // Remounts per image, so its expanded state follows the image's own override.
           key={`${activeMedia.source}:${activeMedia.id}`}
-          languages={keepSame ? ['En', 'Ar'] : [activeLocaleIsRtl ? 'Ar' : 'En']}
+          language={activeLocaleIsRtl ? 'Ar' : 'En'}
           media={activeMedia}
           onChange={handleOverrideChange}
           t={t}
