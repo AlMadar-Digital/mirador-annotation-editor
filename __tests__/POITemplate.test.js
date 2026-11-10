@@ -312,6 +312,7 @@ describe('POITemplate (render)', () => {
     searchMediaItems = undefined,
     searchIiifImages = undefined,
     searchUploads = undefined,
+    searchPois = undefined,
   ) => render(
     <I18nextProvider i18n={i18n}>
       <POITemplate
@@ -327,7 +328,7 @@ describe('POITemplate (render)', () => {
       preloadedState: {
         config: {
           annotation: {
-            contentLocales, searchIiifImages, searchMediaItems, searchUploads,
+            contentLocales, searchIiifImages, searchMediaItems, searchPois, searchUploads,
           },
         },
       },
@@ -880,6 +881,95 @@ describe('POITemplate (render)', () => {
     };
     await expectTooltip('latitude');
     await expectTooltip('longitude');
+  });
+
+  // platform#553: a paper map and its silver twin each carry their own POI for one place.
+  describe('same place as', () => {
+    const GATE = { documentId: 'poi-9', map: { documentId: 'map-2', titleEn: 'Silver map' }, titleEn: 'Jaffa Gate' };
+
+    /** A saved POI the form can save again unchanged */
+    const savedPoi = (extra = {}) => ({
+      body: [],
+      'dbf:kind': 'POI',
+      id: 'canvas1/annotation/1',
+      maeData: {
+        target: { drawingState: JSON.stringify({ shapes: [poiShape()] }) },
+        templateType: 'poi',
+      },
+      motivation: 'identifying',
+      target: {
+        selector: [{ type: 'SvgSelector', value: '<svg><circle cx="10" cy="20" r="5"/></svg>' }],
+        source: 'canvas1',
+      },
+      ...extra,
+    });
+
+    /** Render with only the searchPois capability configured */
+    const renderWithPois = (annotation, saveAnnotation, searchPois) => renderPoiTemplate(
+      annotation,
+      saveAnnotation,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      searchPois,
+    );
+
+    it('does not render the field when no searchPois capability is configured', () => {
+      renderPoiTemplate();
+
+      expect(screen.queryByLabelText('poi_same_place_as')).not.toBeInTheDocument();
+    });
+
+    it('lets the editor pick the same place on another map, saved as root-level dbf:samePlaceAs', async () => {
+      const saveAnnotation = vi.fn();
+      const searchPois = vi.fn().mockResolvedValue([GATE]);
+      renderWithPois(savedPoi(), saveAnnotation, searchPois);
+
+      await userEvent.type(screen.getByLabelText('poi_same_place_as'), 'Jaffa');
+      await waitFor(() => expect(searchPois).toHaveBeenCalledWith('Jaffa'));
+      fireEvent.click(await screen.findByRole('option', { name: 'Jaffa Gate — Silver map' }));
+      fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+      expect(saveAnnotation).toHaveBeenCalledWith(expect.objectContaining({
+        'dbf:samePlaceAs': {
+          id: 'poi-9', mapId: 'map-2', mapTitleEn: 'Silver map', titleEn: 'Jaffa Gate',
+        },
+      }));
+    });
+
+    it('rehydrates the link from an existing annotation', () => {
+      renderWithPois(savedPoi({
+        'dbf:samePlaceAs': {
+          id: 'poi-9', mapId: 'map-2', mapTitleEn: 'Silver map', titleEn: 'Jaffa Gate',
+        },
+      }), vi.fn(), vi.fn().mockResolvedValue([]));
+
+      expect(screen.getByLabelText('poi_same_place_as')).toHaveValue('Jaffa Gate — Silver map');
+    });
+
+    it('saves null when the link is cleared', async () => {
+      const saveAnnotation = vi.fn();
+      renderWithPois(savedPoi({
+        'dbf:samePlaceAs': { id: 'poi-9', titleEn: 'Jaffa Gate' },
+      }), saveAnnotation, vi.fn().mockResolvedValue([]));
+
+      await userEvent.hover(screen.getByLabelText('poi_same_place_as'));
+      fireEvent.click(screen.getByTitle('Clear'));
+      fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+      expect(saveAnnotation).toHaveBeenCalledWith(expect.objectContaining({ 'dbf:samePlaceAs': null }));
+    });
+
+    it('leaves an untouched link exactly as it was loaded', () => {
+      const saveAnnotation = vi.fn();
+      const link = { id: 'poi-9', titleEn: 'Jaffa Gate' };
+      renderWithPois(savedPoi({ 'dbf:samePlaceAs': link }), saveAnnotation, vi.fn().mockResolvedValue([]));
+
+      fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+      expect(saveAnnotation).toHaveBeenCalledWith(expect.objectContaining({ 'dbf:samePlaceAs': link }));
+    });
   });
 
   it('starts with empty latitude/longitude fields for a new annotation', () => {

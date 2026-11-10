@@ -10,6 +10,9 @@ import { finalizeSpatialTarget } from '../../../IIIFUtils';
 import { templateKit } from '../kit';
 import { LanguageToggle } from '../templateComponents/LanguageToggle';
 import { MapRelationField } from '../templateComponents/MapRelationField';
+import {
+  optionToSamePlaceAs, PoiRelationField, samePlaceAsToOption,
+} from '../templateComponents/PoiRelationField';
 import { RichTextField } from '../templateComponents/RichTextField';
 import {
   applyPoiBodyConversion,
@@ -58,7 +61,7 @@ export default function NestedMapTemplate(
   },
 ) {
   const {
-    contentLocales = [], searchMaps,
+    contentLocales = [], searchMaps, searchPois,
   } = useSelector((state) => getConfig(state)).annotation ?? {};
 
   let maeAnnotation = annotation;
@@ -72,6 +75,7 @@ export default function NestedMapTemplate(
       'dbf:longitude': null,
       'dbf:mediaAr': null,
       'dbf:mediaEn': null,
+      'dbf:samePlaceAs': null,
       maeData: {
         contentByLocale: {},
         target: null,
@@ -153,6 +157,15 @@ export default function NestedMapTemplate(
       ...annotationState,
       'dbf:linkedMap': map ? { id: map.documentId, titleEn: map.titleEn } : null,
     });
+  };
+
+  /** Link this point to the same place on another map, or clear the link - see POITemplate's
+   * updateSamePlaceAs. */
+  const updateSamePlaceAs = (poi) => {
+    setAnnotationState((prev) => ({
+      ...prev,
+      'dbf:samePlaceAs': optionToSamePlaceAs(poi),
+    }));
   };
 
   /** Update the optional real-world latitude/longitude - see POITemplate's updateLatitude/
@@ -316,6 +329,18 @@ export default function NestedMapTemplate(
           )}
         </Grid>
       </Grid>
+      {typeof searchPois === 'function' && (
+        <Grid>
+          <PoiRelationField
+            dialogContainer={dialogContainer}
+            label={t('poi_same_place_as')}
+            onChange={updateSamePlaceAs}
+            onSearch={searchPois}
+            t={t}
+            value={samePlaceAsToOption(annotationState['dbf:samePlaceAs'])}
+          />
+        </Grid>
+      )}
       <Grid>
         <TargetFormSection
           onChangeTarget={updateTargetState}

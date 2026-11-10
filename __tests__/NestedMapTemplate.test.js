@@ -107,6 +107,7 @@ describe('NestedMapTemplate (render)', () => {
     saveAnnotation = vi.fn(),
     searchMaps = vi.fn().mockResolvedValue([]),
     contentLocales = [],
+    searchPois = undefined,
   ) => render(
     <I18nextProvider i18n={i18n}>
       <NestedMapTemplate
@@ -118,7 +119,7 @@ describe('NestedMapTemplate (render)', () => {
         windowId="window1"
       />
     </I18nextProvider>,
-    { preloadedState: { config: { annotation: { contentLocales, searchMaps } } } },
+    { preloadedState: { config: { annotation: { contentLocales, searchMaps, searchPois } } } },
   );
 
   it('does not save and shows an error when the target is not a single point', () => {
@@ -344,5 +345,31 @@ describe('NestedMapTemplate (render)', () => {
     expect(saveAnnotation).toHaveBeenCalledWith(
       expect.objectContaining({ 'dbf:latitude': 31.7767, 'dbf:longitude': 35.2345 }),
     );
+  });
+
+  // platform#553
+  it('does not render the same-place field when no searchPois capability is configured', () => {
+    renderNestedMapTemplate(baseNestedMapState());
+
+    expect(screen.queryByLabelText('poi_same_place_as')).not.toBeInTheDocument();
+  });
+
+  it('lets the editor pick the same place on another map, saved as root-level dbf:samePlaceAs', async () => {
+    const saveAnnotation = vi.fn();
+    const searchPois = vi.fn().mockResolvedValue([
+      { documentId: 'poi-9', map: { documentId: 'map-2', titleEn: 'Silver map' }, titleEn: 'Jaffa Gate' },
+    ]);
+    renderNestedMapTemplate(baseNestedMapState(), saveAnnotation, undefined, [], searchPois);
+
+    await userEvent.type(screen.getByLabelText('poi_same_place_as'), 'Jaffa');
+    await waitFor(() => expect(searchPois).toHaveBeenCalledWith('Jaffa'));
+    fireEvent.click(await screen.findByRole('option', { name: 'Jaffa Gate — Silver map' }));
+    fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+    expect(saveAnnotation).toHaveBeenCalledWith(expect.objectContaining({
+      'dbf:samePlaceAs': {
+        id: 'poi-9', mapId: 'map-2', mapTitleEn: 'Silver map', titleEn: 'Jaffa Gate',
+      },
+    }));
   });
 });
