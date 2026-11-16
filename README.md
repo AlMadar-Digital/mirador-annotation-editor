@@ -184,6 +184,33 @@ example (a minimal whole-canvas star-rating template) and
 `src/annotationForm/templates/registry.jsx`'s `TEMPLATE_REGISTRY` JSDoc for the full contract
 reference.
 
+### Relation search capabilities
+
+The POI and Nested Map templates can link an annotation to a record the host owns. Each picker
+is rendered only when the host passes its search function in `config.annotation`; without it
+the field is absent and the saved extension is passed through untouched.
+
+| Capability | Field | Template | Saved as |
+| --- | --- | --- | --- |
+| `searchMaps(query)` | Linked map | Nested Map | `dbf:linkedMap`: `{ id, titleEn }` |
+| `searchPois(query)` | Same place as (on another map) | POI, Nested Map | `dbf:samePlaceAs`: `{ id, titleEn, mapId, mapTitleEn }`, or `null` to clear the link |
+
+```js
+let annotationConfig = {
+  // ... your other options ...
+  searchMaps: (query) => fetchMaps(query), // => Promise<Array<{ documentId, titleEn }>>
+  searchPois: (query) => fetchPois(query), // => Promise<Array<{ documentId, titleEn, map: { documentId, titleEn } }>>
+};
+```
+
+The contract both functions share:
+
+- They receive **only the typed text**. The editor does not say which map is being edited, so
+  the host must leave that map out itself: `searchMaps` must not return it, and `searchPois`
+  must not return its POIs (a POI is linked to a place on *another* map).
+- An empty `query` is sent when the dropdown opens on an empty field; return a default list.
+- A rejected promise (or a thrown error) empties the list and shows a "Search failed" message.
+
 ### Restricting selectable templates
 
 `config.annotation.enabledTemplateTypes`: an array of template ids (built-in `TEMPLATE.*` values

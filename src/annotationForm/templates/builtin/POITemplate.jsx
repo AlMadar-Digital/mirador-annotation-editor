@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Grid, TextField, Tooltip } from '@mui/material';
 import Typography from '@mui/material/Typography';
 import PropTypes from 'prop-types';
@@ -10,6 +10,9 @@ import { finalizeSpatialTarget, isEmptyValue } from '../../../IIIFUtils';
 import { templateKit } from '../kit';
 import { LanguageToggle } from '../templateComponents/LanguageToggle';
 import { LocalizedMediaSelectionField } from '../templateComponents/LocalizedMediaSelectionField';
+import {
+  optionToSamePlaceAs, PoiRelationField, samePlaceAsToOption,
+} from '../templateComponents/PoiRelationField';
 import { RichTextField } from '../templateComponents/RichTextField';
 
 const { AnnotationFormFooter, TargetFormSection } = templateKit;
@@ -173,8 +176,9 @@ export const isTitleFilled = (contentByLocale, contentLocales) => (
  * typed anything) is simply absent from the saved body - it is not re-saved as an empty
  * translation.
  *
- * Media (`dbf:mediaEn`/`dbf:mediaAr`), journey membership (`dbf:journey`), and cross-map linking
- * (`dbf:linkedMap`) are deliberately NOT read or written here: each media field is set directly
+ * Media (`dbf:mediaEn`/`dbf:mediaAr`), journey membership (`dbf:journey`), cross-map linking
+ * (`dbf:linkedMap`) and the same place on another map (`dbf:samePlaceAs`, set by
+ * updateSamePlaceAs) are deliberately NOT read or written here: each media field is set directly
  * on `state` by LocalizedMediaSelectionField's onChangeEn/onChangeAr (see updateMediaEn/
  * updateMediaAr in POITemplate/JourneyTemplate/NestedMapTemplate - issue #377, mirrors how
  * NestedMapTemplate already threads `dbf:linkedMap` through), and journey/linkedMap are
@@ -237,7 +241,7 @@ export default function POITemplate(
   },
 ) {
   const {
-    contentLocales = [], searchMediaItems, searchIiifImages, searchUploads,
+    contentLocales = [], searchMediaItems, searchIiifImages, searchPois, searchUploads,
   } = useSelector((state) => getConfig(state)).annotation ?? {};
 
   let maeAnnotation = annotation;
@@ -250,6 +254,7 @@ export default function POITemplate(
       'dbf:longitude': null,
       'dbf:mediaAr': null,
       'dbf:mediaEn': null,
+      'dbf:samePlaceAs': null,
       maeData: {
         contentByLocale: {},
         target: null,
@@ -280,6 +285,10 @@ export default function POITemplate(
   }
 
   const [annotationState, setAnnotationState] = useState(maeAnnotation);
+  // Memoised: MUI rewrites the text typed in a relation field whenever its value changes by
+  // reference, so a fresh object per render would wipe a query on any re-render mid-typing.
+  const samePlaceAs = annotationState['dbf:samePlaceAs'];
+  const samePlaceAsOption = useMemo(() => samePlaceAsToOption(samePlaceAs), [samePlaceAs]);
   const [targetError, setTargetError] = useState(false);
   const [titleError, setTitleError] = useState(false);
   const [latitudeError, setLatitudeError] = useState(false);
@@ -387,6 +396,16 @@ export default function POITemplate(
     setAnnotationState((prev) => ({
       ...prev,
       'dbf:longitude': normalizeCoordinateInput(value),
+    }));
+  };
+
+  /** Link this POI to the same place on another map, or clear the link (poi is `null`) - its own
+   * root-level annotation extension (`dbf:samePlaceAs`, platform#553), same pattern as
+   * updateMediaEn/updateMediaAr. */
+  const updateSamePlaceAs = (poi) => {
+    setAnnotationState((prev) => ({
+      ...prev,
+      'dbf:samePlaceAs': optionToSamePlaceAs(poi),
     }));
   };
 
@@ -537,6 +556,18 @@ export default function POITemplate(
           )}
         </Grid>
       </Grid>
+      {typeof searchPois === 'function' && (
+        <Grid>
+          <PoiRelationField
+            dialogContainer={dialogContainer}
+            label={t('poi_same_place_as')}
+            onChange={updateSamePlaceAs}
+            onSearch={searchPois}
+            t={t}
+            value={samePlaceAsOption}
+          />
+        </Grid>
+      )}
       <Grid>
         <TargetFormSection
           onChangeTarget={updateTargetState}

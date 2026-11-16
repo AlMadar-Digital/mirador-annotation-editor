@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Grid, TextField, Tooltip } from '@mui/material';
 import Typography from '@mui/material/Typography';
 import PropTypes from 'prop-types';
@@ -10,6 +10,9 @@ import { finalizeSpatialTarget } from '../../../IIIFUtils';
 import { templateKit } from '../kit';
 import { LanguageToggle } from '../templateComponents/LanguageToggle';
 import { MapRelationField } from '../templateComponents/MapRelationField';
+import {
+  optionToSamePlaceAs, PoiRelationField, samePlaceAsToOption,
+} from '../templateComponents/PoiRelationField';
 import { RichTextField } from '../templateComponents/RichTextField';
 import {
   applyPoiBodyConversion,
@@ -58,7 +61,7 @@ export default function NestedMapTemplate(
   },
 ) {
   const {
-    contentLocales = [], searchMaps,
+    contentLocales = [], searchMaps, searchPois,
   } = useSelector((state) => getConfig(state)).annotation ?? {};
 
   let maeAnnotation = annotation;
@@ -72,6 +75,7 @@ export default function NestedMapTemplate(
       'dbf:longitude': null,
       'dbf:mediaAr': null,
       'dbf:mediaEn': null,
+      'dbf:samePlaceAs': null,
       maeData: {
         contentByLocale: {},
         target: null,
@@ -120,6 +124,14 @@ export default function NestedMapTemplate(
   );
   const activeLocaleIsRtl = isRtlLocale(activeLocale);
   const linkedMap = annotationState['dbf:linkedMap'] ?? null;
+  // Memoised: MUI rewrites the text typed in a relation field whenever its value changes by
+  // reference, so a fresh object per render would wipe a query on any re-render mid-typing.
+  const linkedMapOption = useMemo(
+    () => (linkedMap ? { documentId: linkedMap.id, titleEn: linkedMap.titleEn } : null),
+    [linkedMap],
+  );
+  const samePlaceAs = annotationState['dbf:samePlaceAs'];
+  const samePlaceAsOption = useMemo(() => samePlaceAsToOption(samePlaceAs), [samePlaceAs]);
 
   /** Update a top-level maeData field * */
   const updateMaeData = (patch) => {
@@ -153,6 +165,15 @@ export default function NestedMapTemplate(
       ...annotationState,
       'dbf:linkedMap': map ? { id: map.documentId, titleEn: map.titleEn } : null,
     });
+  };
+
+  /** Link this point to the same place on another map, or clear the link - see POITemplate's
+   * updateSamePlaceAs. */
+  const updateSamePlaceAs = (poi) => {
+    setAnnotationState((prev) => ({
+      ...prev,
+      'dbf:samePlaceAs': optionToSamePlaceAs(poi),
+    }));
   };
 
   /** Update the optional real-world latitude/longitude - see POITemplate's updateLatitude/
@@ -252,7 +273,7 @@ export default function NestedMapTemplate(
             onChange={updateLinkedMap}
             onSearch={searchMaps}
             t={t}
-            value={linkedMap ? { documentId: linkedMap.id, titleEn: linkedMap.titleEn } : null}
+            value={linkedMapOption}
           />
           {linkedMapError && (
             <Typography color="error" variant="caption">
@@ -316,6 +337,18 @@ export default function NestedMapTemplate(
           )}
         </Grid>
       </Grid>
+      {typeof searchPois === 'function' && (
+        <Grid>
+          <PoiRelationField
+            dialogContainer={dialogContainer}
+            label={t('poi_same_place_as')}
+            onChange={updateSamePlaceAs}
+            onSearch={searchPois}
+            t={t}
+            value={samePlaceAsOption}
+          />
+        </Grid>
+      )}
       <Grid>
         <TargetFormSection
           onChangeTarget={updateTargetState}
