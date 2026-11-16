@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Grid, TextField, Tooltip } from '@mui/material';
 import Typography from '@mui/material/Typography';
 import PropTypes from 'prop-types';
@@ -285,6 +285,10 @@ export default function POITemplate(
   }
 
   const [annotationState, setAnnotationState] = useState(maeAnnotation);
+  // Memoised: MUI rewrites the text typed in a relation field whenever its value changes by
+  // reference, so a fresh object per render would wipe a query on any re-render mid-typing.
+  const samePlaceAs = annotationState['dbf:samePlaceAs'];
+  const samePlaceAsOption = useMemo(() => samePlaceAsToOption(samePlaceAs), [samePlaceAs]);
   const [targetError, setTargetError] = useState(false);
   const [titleError, setTitleError] = useState(false);
   const [latitudeError, setLatitudeError] = useState(false);
@@ -560,7 +564,7 @@ export default function POITemplate(
             onChange={updateSamePlaceAs}
             onSearch={searchPois}
             t={t}
-            value={samePlaceAsToOption(annotationState['dbf:samePlaceAs'])}
+            value={samePlaceAsOption}
           />
         </Grid>
       )}

@@ -125,6 +125,7 @@ export const fr = {
   pressEscapeToFinish: 'Appuyez sur "Échap" pour terminer la ligne',
   rectangle: 'Rectangle',
   refresh_journey_path: 'Actualiser le tracé',
+  relation_search_failed: 'La recherche a échoué. Veuillez réessayer.',
   remove_from_journey: 'Retirer du parcours',
   replace: 'Remplacer',
   save: 'Sauvegarder',

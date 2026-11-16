@@ -125,6 +125,7 @@ export const en = {
   pressEscapeToFinish: 'Press "Esc" to finish the line',
   rectangle: 'Rectangle',
   refresh_journey_path: 'Refresh path',
+  relation_search_failed: 'Search failed. Please try again.',
   remove_from_journey: 'Remove from journey',
   replace: 'Replace',
   save: 'Save',

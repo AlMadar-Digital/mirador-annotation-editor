@@ -125,6 +125,7 @@ export const ar = {
   pressEscapeToFinish: "اضغط \"Esc\" لإنهاء الخط",
   rectangle: "مستطيل",
   refresh_journey_path: "تحديث المسار",
+  relation_search_failed: "تعذّر البحث. حاول مرة أخرى.",
   remove_from_journey: "إزالة من المسار",
   replace: "استبدال",
   save: "حفظ",

@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Grid, TextField, Tooltip } from '@mui/material';
 import Typography from '@mui/material/Typography';
 import PropTypes from 'prop-types';
@@ -124,6 +124,14 @@ export default function NestedMapTemplate(
   );
   const activeLocaleIsRtl = isRtlLocale(activeLocale);
   const linkedMap = annotationState['dbf:linkedMap'] ?? null;
+  // Memoised: MUI rewrites the text typed in a relation field whenever its value changes by
+  // reference, so a fresh object per render would wipe a query on any re-render mid-typing.
+  const linkedMapOption = useMemo(
+    () => (linkedMap ? { documentId: linkedMap.id, titleEn: linkedMap.titleEn } : null),
+    [linkedMap],
+  );
+  const samePlaceAs = annotationState['dbf:samePlaceAs'];
+  const samePlaceAsOption = useMemo(() => samePlaceAsToOption(samePlaceAs), [samePlaceAs]);
 
   /** Update a top-level maeData field * */
   const updateMaeData = (patch) => {
@@ -265,7 +273,7 @@ export default function NestedMapTemplate(
             onChange={updateLinkedMap}
             onSearch={searchMaps}
             t={t}
-            value={linkedMap ? { documentId: linkedMap.id, titleEn: linkedMap.titleEn } : null}
+            value={linkedMapOption}
           />
           {linkedMapError && (
             <Typography color="error" variant="caption">
@@ -337,7 +345,7 @@ export default function NestedMapTemplate(
             onChange={updateSamePlaceAs}
             onSearch={searchPois}
             t={t}
-            value={samePlaceAsToOption(annotationState['dbf:samePlaceAs'])}
+            value={samePlaceAsOption}
           />
         </Grid>
       )}

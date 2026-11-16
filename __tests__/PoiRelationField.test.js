@@ -13,6 +13,10 @@ import {
 /** Identity translation stub */
 const mockT = (key) => key;
 
+/** Wait out the field's search debounce (300 ms), so a search that should not happen has had
+ * the time to. */
+const settle = () => new Promise((resolve) => { setTimeout(resolve, 400); });
+
 const GATE = { documentId: 'poi-9', map: { documentId: 'map-2', titleEn: 'Silver map' }, titleEn: 'Jaffa Gate' };
 
 describe('poiOptionLabel', () => {
@@ -106,5 +110,16 @@ describe('PoiRelationField', () => {
     fireEvent.click(screen.getByTitle('Clear'));
 
     expect(onChange).toHaveBeenCalledWith(null);
+  });
+
+  it('does not search on the "POI — Map" label once a POI is picked', async () => {
+    const { onChange, onSearch } = renderField();
+
+    await userEvent.type(screen.getByLabelText('same place'), 'Jaffa');
+    fireEvent.click(await screen.findByRole('option', { name: 'Jaffa Gate — Silver map' }));
+    expect(onChange).toHaveBeenCalledWith(GATE);
+    await settle();
+
+    expect(onSearch).not.toHaveBeenCalledWith('Jaffa Gate — Silver map');
   });
 });
